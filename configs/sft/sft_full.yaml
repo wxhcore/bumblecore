@@ -39,5 +39,5 @@ save_train_log: true
 use_tensorboard: true
 
 
-average_tokens_across_devices: true
+average_tokens_across_devices: false
 num_local_io_workers: null  # 整数，不传则根据gpu数量自动计算      

@@ -1,0 +1,67 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+eggs/
+.eggs/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# 虚拟环境
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 测试和代码质量工具
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.tox/
+*.ipynb_checkpoints
+
+# 训练产出
+checkpoints/
+outputs/
+logs/
+wandb/
+tensorboard/
+
+# 数据（通常不提交）
+data/pretrain/
+data/sft/
+data/dpo/
+
+# 实验记录（可选）
+experiments/*.md
+!experiments/README.md
+
+# 模型文件
+*.bin
+*.safetensors
+*.pt
+*.pth
+
+# 临时文件
+*.tmp
+*.log
+.DS_Store
+
+# DeepSpeed
+deepspeed_logs/
+

@@ -150,7 +150,6 @@ class BaseTrainer:
                 model = AutoModelForCausalLM.from_config(config, **common_kwargs)
                 self._print_log(f"[{self.config.training_stage}] Initialized from config: {self.config.model_name_or_path}")
             elif self.config.training_stage in ["continue_pretrain", "sft", "dpo"]:
-                # device_map=f"cuda:{self.rank}"
                 model = AutoModelForCausalLM.from_pretrained(
                     self.config.model_name_or_path, low_cpu_mem_usage=True, **common_kwargs,
                 )
@@ -169,7 +168,7 @@ class BaseTrainer:
 
 
     def _configure_model_for_training(self, model):
-        model.config.use_cache = False
+        # model.config.use_cache = False
         vocab_size = model.config.vocab_size
         if self.config.enable_gradient_checkpointing:
             model.gradient_checkpointing_enable()
@@ -361,7 +360,6 @@ class BaseTrainer:
 
     def train(self):
 
-
         progress_bar = tqdm(total=self.max_steps, desc="Training") if self.rank == 0 else None
         
         global_step = 0
@@ -433,7 +431,7 @@ class BaseTrainer:
         input_ids = batch["input_ids"]
         attention_mask = batch["attention_mask"]
         labels = batch["labels"]
-        output = model_engine(input_ids=input_ids, attention_mask=attention_mask)
+        output = model_engine(input_ids=input_ids, attention_mask=attention_mask, use_cache=False)
         if self.config.average_tokens_across_devices:
             count = (labels != -100).sum().float()
             dist.all_reduce(count, op=dist.ReduceOp.SUM)

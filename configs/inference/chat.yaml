@@ -1,0 +1,17 @@
+# 模型配置
+model_path: "<your model path>"       
+device_map: "auto"                                  
+dtype: "auto"
+training_stage: "sft"
+
+# 对话配置
+system_prompt: "You are a helpful assistant."
+max_new_tokens: 1024                                 
+enable_history: false  
+
+# 生成参数
+do_sample: null
+temperature: null                                  
+top_k: null                                         
+top_p: null                                         
+repetition_penalty: null                                    

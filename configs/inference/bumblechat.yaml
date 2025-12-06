@@ -1,0 +1,21 @@
+# 模型配置
+model_path: "<your model path>"
+training_stage: "sft"
+device_map: "cpu"
+dtype: "auto"
+
+# 服务器配置
+host: "0.0.0.0"
+port: 8000
+
+# 对话配置
+system_prompt: "You are a helpful assistant."
+max_new_tokens: 1024
+enable_history: false
+
+# 生成参数
+do_sample: null
+temperature: null
+top_k: null
+top_p: null
+repetition_penalty: null

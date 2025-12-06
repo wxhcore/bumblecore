@@ -19,7 +19,7 @@ warmup_ratio: 0.1
 
 # Batch Size
 train_micro_batch_size_per_gpu: 2              
-gradient_accumulation_steps: 8                  
+gradient_accumulation_steps: 2                  
 
 # Precision
 train_model_precision: "bf16"                   
@@ -29,10 +29,10 @@ deepspeed_config_path: "<your deepspeed config path>"
 
 # Save & Log
 output_dir: "<your output directory>"                 
-save_steps: 100
+save_steps: 100000
 save_total_limit: 3
 save_last: true
-logging_steps: 10
+logging_steps: 1
 save_train_log: true
 use_tensorboard: true
 

@@ -20,8 +20,8 @@ enable_gradient_checkpointing: true
 warmup_ratio: 0.1
 
 # Batch Size
-train_micro_batch_size_per_gpu: 1              
-gradient_accumulation_steps: 16                 
+train_micro_batch_size_per_gpu: 2              
+gradient_accumulation_steps: 2                 
 
 # Precision
 train_model_precision: "bf16"                   
@@ -34,7 +34,7 @@ output_dir: "<your output directory>"
 save_steps: 200
 save_total_limit: 3
 save_last: true
-logging_steps: 10
+logging_steps: 1
 save_train_log: true
 use_tensorboard: true
 

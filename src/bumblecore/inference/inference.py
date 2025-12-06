@@ -1,8 +1,9 @@
+from threading import Thread
+from typing import Optional, Generator, List,AsyncGenerator
+
 import torch
 import torch.nn.functional as F
-from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig, TextIteratorStreamer
-from threading import Thread
-from typing import Optional, Generator, List
+from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig, TextIteratorStreamer,AsyncTextIteratorStreamer
 
 from ..bumblebee import BumblebeeConfig, BumblebeeForCausalLM
 AutoModelForCausalLM.register(BumblebeeConfig, BumblebeeForCausalLM)
@@ -168,7 +169,8 @@ class StreamTextGenerator:
         repetition_penalty: Optional[float],
         do_sample: Optional[bool],
     ) -> str:
-        tokens = input_ids[0].tolist()
+        prompt_tokens = input_ids[0].tolist()
+        completion_tokens = []
         
         for token_id in self.generate_stream(
             input_ids=input_ids,
@@ -179,9 +181,14 @@ class StreamTextGenerator:
             repetition_penalty=repetition_penalty,
             do_sample=do_sample,
         ):
-            tokens.append(token_id)
+            completion_tokens.append(token_id)
             
-        return self.tokenizer.decode(tokens, skip_special_tokens=True)
+        return dict(
+            response=self.tokenizer.decode(completion_tokens, skip_special_tokens=True),
+            prompt_tokens=len(prompt_tokens),
+            completion_tokens=len(completion_tokens),
+            total_tokens=len(prompt_tokens) + len(completion_tokens),
+        )
 
 
 class BumblebeeChat:
@@ -220,6 +227,7 @@ class BumblebeeChat:
     def _prepare_generation_inputs(
         self,
         messages: List[dict] | str,
+        max_new_tokens: Optional[int],
         system_prompt: Optional[str],
         temperature: Optional[float],
         top_k: Optional[int],
@@ -228,6 +236,7 @@ class BumblebeeChat:
         do_sample: Optional[bool],
     ):
         system_prompt = system_prompt if system_prompt is not None else "You are a helpful assistant."
+        max_new_tokens = max_new_tokens if max_new_tokens is not None else 1024
         temperature = temperature if temperature is not None else self.generation_config.temperature
         top_k = top_k if top_k is not None else self.generation_config.top_k
         top_p = top_p if top_p is not None else self.generation_config.top_p
@@ -244,12 +253,13 @@ class BumblebeeChat:
             "top_p": top_p,
             "repetition_penalty": repetition_penalty,
             "do_sample": do_sample,
+            "max_new_tokens": max_new_tokens,
         }
 
     def chat(
         self,
         messages: List[dict]|str,
-        max_new_tokens: Optional[int],
+        max_new_tokens: Optional[int] = None,
         system_prompt: Optional[str] = None,
         temperature: Optional[float] = None,
         top_k: Optional[int] = None,
@@ -258,10 +268,19 @@ class BumblebeeChat:
         do_sample: Optional[bool] = None,
     ) -> str:
         
-        prep = self._prepare_generation_inputs(messages, system_prompt, temperature, top_k, top_p, repetition_penalty, do_sample)
+        prep = self._prepare_generation_inputs(
+            messages = messages,
+            max_new_tokens=max_new_tokens,
+            system_prompt=system_prompt,
+            temperature=temperature,
+            top_k=top_k,
+            top_p=top_p,
+            repetition_penalty=repetition_penalty,
+            do_sample=do_sample,
+        )
         return self.generator.generate(
             prep["inputs"].input_ids.to(self.model.device),
-            max_new_tokens=max_new_tokens,
+            max_new_tokens=prep["max_new_tokens"],
             temperature=prep["temperature"],
             top_k=prep["top_k"],
             top_p=prep["top_p"],
@@ -296,7 +315,14 @@ class BumblebeeChat:
         do_sample: Optional[bool] = None,
     ) -> Generator[str, None, None]:
         prep = self._prepare_generation_inputs(
-            messages, system_prompt, temperature, top_k, top_p, repetition_penalty, do_sample
+            messages=messages,
+            max_new_tokens=max_new_tokens,
+            system_prompt=system_prompt,
+            temperature=temperature,
+            top_k=top_k,
+            top_p=top_p,
+            repetition_penalty=repetition_penalty,
+            do_sample=do_sample,
         )
         
         buffer: List[int] = []
@@ -304,7 +330,7 @@ class BumblebeeChat:
 
         for token_id in self.generator.generate_stream(
             prep["inputs"].input_ids.to(self.model.device),
-            max_new_tokens=max_new_tokens,
+            max_new_tokens=prep["max_new_tokens"],
             temperature=prep["temperature"],
             top_k=prep["top_k"],
             top_p=prep["top_p"],
@@ -378,7 +404,7 @@ class HFStreamChat:
     def stream_chat(
         self,
         messages: List[dict] | str,
-        max_new_tokens: int = 512,
+        max_new_tokens: Optional[int] = None,
         system_prompt: Optional[str] = None,
         temperature: Optional[float] = None,
         top_k: Optional[int] = None,
@@ -392,7 +418,7 @@ class HFStreamChat:
 
         gen_kwargs = dict(
             **inputs,
-            max_new_tokens=max_new_tokens,
+            max_new_tokens=max_new_tokens if max_new_tokens is not None else 1024,
             temperature = temperature if temperature is not None else self.generation_config.temperature,
             top_k = top_k if top_k is not None else self.generation_config.top_k,
             top_p = top_p if top_p is not None else self.generation_config.top_p,
@@ -413,3 +439,40 @@ class HFStreamChat:
             yield new_text
 
         thread.join()
+    
+    async def async_stream_chat(
+        self,
+        messages: List[dict] | str,
+        max_new_tokens: Optional[int] = None,
+        system_prompt: Optional[str] = None,
+        temperature: Optional[float] = None,
+        top_k: Optional[int] = None,
+        top_p: Optional[float] = None,
+        repetition_penalty: Optional[float] = None,
+        do_sample: Optional[bool] = None,
+    ) -> AsyncGenerator[str, None]:
+
+        prompt = self._build_prompt(messages, system_prompt) if isinstance(messages, list) else messages
+        inputs = self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
+
+        gen_kwargs = dict(
+            **inputs,
+            max_new_tokens=max_new_tokens if max_new_tokens is not None else 1024,
+            temperature = temperature if temperature is not None else self.generation_config.temperature,
+            top_k = top_k if top_k is not None else self.generation_config.top_k,
+            top_p = top_p if top_p is not None else self.generation_config.top_p,
+            repetition_penalty = repetition_penalty if repetition_penalty is not None else self.generation_config.repetition_penalty,
+            do_sample = do_sample if do_sample is not None else self.generation_config.do_sample,
+            pad_token_id=self.tokenizer.pad_token_id,
+            eos_token_id=self.tokenizer.eos_token_id,
+            use_cache=True
+        )
+
+        streamer = AsyncTextIteratorStreamer(self.tokenizer, skip_prompt=True, skip_special_tokens=True)
+
+        generation_kwargs = dict(**gen_kwargs, streamer=streamer)
+        thread = Thread(target=self.model.generate, kwargs=generation_kwargs)
+        thread.start()
+
+        async for new_text in streamer:
+            yield new_text

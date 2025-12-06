@@ -20,7 +20,7 @@ warmup_ratio: 0.1
 
 # Batch Size
 train_micro_batch_size_per_gpu: 4
-gradient_accumulation_steps: 8
+gradient_accumulation_steps: 4
 
 # Precision
 train_model_precision: "bf16"

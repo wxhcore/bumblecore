@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BumbleChat</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+    <div id="app-container">
+        <!-- 聊天消息区域 -->
+        <div id="chat-container">
+            <!-- 顶部白色遮罩条 -->
+            <div id="top-overlay">
+                <div id="top-overlay-text">🐝 BumbleChat</div>
+            </div>
+            <div id="messages"></div>
+        </div>
+        
+        <!-- 输入区域 -->
+        <div id="input-container" class="centered">
+            <div id="input-wrapper">
+                <textarea 
+                    id="user-input" 
+                    placeholder="与BumbleBee聊天"
+                    rows="1"
+                ></textarea>
+                <button id="send-button" title="发送">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        const chatContainer = document.getElementById('chat-container');
+        const messagesContainer = document.getElementById('messages');
+        const inputContainer = document.getElementById('input-container');
+        const inputWrapper = document.getElementById('input-wrapper');
+        const userInput = document.getElementById('user-input');
+        const sendButton = document.getElementById('send-button');
+        
+        // 生成或获取 session ID
+        let sessionId = localStorage.getItem('sessionId');
+        if (!sessionId) {
+            sessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            localStorage.setItem('sessionId', sessionId);
+        }
+
+        // 自动调整输入框高度
+        function adjustInputHeight() {
+            userInput.style.height = 'auto';
+            userInput.style.height = userInput.scrollHeight + 'px';
+            // 输入框高度变化时，更新消息容器的 padding
+            updateMessagesPadding();
+        }
+
+        userInput.addEventListener('input', adjustInputHeight);
+        
+        // 监听窗口大小变化，更新 padding
+        window.addEventListener('resize', () => {
+            updateMessagesPadding();
+        });
+
+        // 更新消息容器的底部 padding，防止与输入框重叠
+        function updateMessagesPadding() {
+            if (inputContainer.classList.contains('bottom')) {
+                // 使用 requestAnimationFrame 确保 DOM 更新完成后再计算
+                requestAnimationFrame(() => {
+                    // 计算输入框的实际高度
+                    const inputHeight = inputContainer.offsetHeight;
+                    // 设置底部 padding，留出一些额外空间
+                    messagesContainer.style.paddingBottom = (inputHeight + 20) + 'px';
+                });
+            } else {
+                // 输入框居中时，使用默认 padding
+                messagesContainer.style.paddingBottom = '20px';
+            }
+        }
+
+        // 将输入框移到底部
+        function moveInputToBottom() {
+            inputContainer.classList.remove('centered');
+            inputContainer.classList.add('bottom');
+            // 延迟更新 padding，确保 DOM 更新完成
+            setTimeout(() => {
+                updateMessagesPadding();
+            }, 100);
+        }
+
+        // 检查用户是否在底部附近（允许50px的误差）
+        function isNearBottom() {
+            const threshold = 50;
+            const scrollTop = chatContainer.scrollTop;
+            const scrollHeight = chatContainer.scrollHeight;
+            const clientHeight = chatContainer.clientHeight;
+            return (scrollHeight - scrollTop - clientHeight) < threshold;
+        }
+
+        // 滚动到底部（仅在用户已经在底部附近时）
+        function scrollToBottomIfNeeded() {
+            if (isNearBottom()) {
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
+        }
+
+        // 强制滚动到底部（用于新消息）
+        function scrollToBottom() {
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        // 添加消息到聊天区域
+        function addMessage(role, content, isStreaming = false) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${role}`;
+            
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            
+            if (isStreaming) {
+                contentDiv.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
+            } else {
+                // 使用 marked 解析 markdown
+                if (role === 'assistant') {
+                    contentDiv.innerHTML = marked.parse(content);
+                } else {
+                    contentDiv.textContent = content;
+                }
+            }
+            
+            messageDiv.appendChild(contentDiv);
+            messagesContainer.appendChild(messageDiv);
+            
+            // 新消息时总是滚动到底部
+            scrollToBottom();
+            
+            return contentDiv;
+        }
+
+        // 更新消息内容（流式输出时，只在底部附近才滚动）
+        function updateMessage(element, content) {
+            element.innerHTML = marked.parse(content);
+            scrollToBottomIfNeeded();
+        }
+
+        // 发送消息
+        async function sendMessage() {
+            const message = userInput.value.trim();
+            if (!message || sendButton.disabled) return;
+
+            // 如果是第一次发送，将输入框移到底部
+            if (inputContainer.classList.contains('centered')) {
+                moveInputToBottom();
+            }
+
+            // 添加用户消息
+            addMessage('user', message);
+            
+            // 清空输入框
+            userInput.value = '';
+            adjustInputHeight();
+            
+            // 禁用发送按钮
+            sendButton.disabled = true;
+
+            // 添加助手消息占位符
+            // addMessage 返回的是 contentDiv，所以直接使用
+            const assistantContentDiv = addMessage('assistant', '', true);
+            assistantContentDiv.innerHTML = '';
+
+            let accumulatedText = '';
+
+            try {
+                const response = await fetch('/chat/stream?session_id=' + encodeURIComponent(sessionId), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        messages: message,
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder('utf-8');
+                let buffer = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    
+                    // 保留最后一行（可能不完整）
+                    buffer = lines.pop() || '';
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const dataStr = line.slice(6);
+                            if (dataStr.trim() === '') continue;
+                            
+                            try {
+                                const data = JSON.parse(dataStr);
+                                
+                                if (data.token !== undefined) {
+                                    accumulatedText += data.token;
+                                    updateMessage(assistantContentDiv, accumulatedText);
+                                } else if (data.done) {
+                                    console.log('Stream completed');
+                                    // 流式输出完成后，确保滚动到底部
+                                    scrollToBottom();
+                                } else if (data.error) {
+                                    assistantContentDiv.innerHTML = '<p style="color: #ff0000;">错误: ' + data.error + '</p>';
+                                    break;
+                                }
+                            } catch (e) {
+                                console.error('Parse error:', e, 'Data:', dataStr);
+                            }
+                        }
+                    }
+                }
+
+                // 处理 buffer 中剩余的数据
+                if (buffer.trim()) {
+                    const lines = buffer.split('\n');
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const dataStr = line.slice(6);
+                            try {
+                                const data = JSON.parse(dataStr);
+                                if (data.token) {
+                                    accumulatedText += data.token;
+                                    updateMessage(assistantContentDiv, accumulatedText);
+                                }
+                            } catch (e) {
+                                console.error('Parse error on buffer:', e);
+                            }
+                        }
+                    }
+                }
+
+            } catch (error) {
+                console.error('Error:', error);
+                assistantContentDiv.innerHTML = '<p style="color: #ff0000;">请求失败: ' + error.message + '</p>';
+            } finally {
+                sendButton.disabled = false;
+                userInput.focus();
+            }
+        }
+
+        // 事件监听
+        sendButton.addEventListener('click', sendMessage);
+        
+        userInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        // 初始化：聚焦输入框
+        userInput.focus();
+    </script>
+</body>
+</html>
+

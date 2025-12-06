@@ -1,14 +1,14 @@
-from typing_extensions import override
 from typing import Optional, Mapping, Union
 from contextlib import contextmanager,nullcontext
 import copy
 
+from typing_extensions import override
 from transformers import AutoTokenizer
 from transformers.utils import is_flash_attn_2_available
 from transformers import AutoModelForCausalLM
 import torch
-import deepspeed
 import torch.distributed as dist
+import deepspeed
 
 from .base_trainer import BaseTrainer
 from ..data_processing import DataFormatter, DPODataset, load_dpo_data, DPOCollator

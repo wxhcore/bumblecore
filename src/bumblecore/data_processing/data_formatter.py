@@ -1,4 +1,3 @@
-import pandas as pd
 import json
 
 class DataFormatter:
@@ -47,11 +46,6 @@ class DataFormatter:
             return self.build_dpo_alpaca_samples(dataset)
         else:
             raise ValueError("DPO data format is invalid")
-
-    def _convert_to_dict_records(self, dataset):
-        if isinstance(dataset, pd.DataFrame):
-            return dataset.to_dict("records")
-        return dataset
 
 
     def build_sft_alpaca_samples(self, dataset):
@@ -192,8 +186,7 @@ class DataFormatter:
         return samples
 
     def __call__(self, dataset):
-        dataset = self._convert_to_dict_records(dataset)
-        
+
         if self.training_stage in ["pretrain", "continue_pretrain"]:
             return self._handle_pretrain_data(dataset)
         elif self.training_stage in ["sft"]:

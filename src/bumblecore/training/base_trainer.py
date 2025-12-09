@@ -265,8 +265,8 @@ class BaseTrainer:
         )
         num_update_steps_per_epoch = max(num_update_steps_per_epoch, 1)
         max_steps = math.ceil(num_update_steps_per_epoch * self.config.num_epochs)
-        warmup_steps = int(self.config.warmup_ratio * max_steps)
-
+        warmup_steps = math.ceil(self.config.warmup_ratio * max_steps)
+        
         return num_update_steps_per_epoch, max_steps, warmup_steps
 
 

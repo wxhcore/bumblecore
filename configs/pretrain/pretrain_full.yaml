@@ -26,7 +26,7 @@ gradient_accumulation_steps: 4
 train_model_precision: "bf16"
 
 # DeepSpeed
-deepspeed_config_path: "<your deepspeed config path>"  
+deepspeed_config_path: "./configs/deepspeed/ds_z2_config.json"  
 
 # Save & Log
 output_dir: "<your output directory>"

@@ -188,7 +188,6 @@ def test_sft_dataset_max_length_truncation():
     
     dataset = SFTDataset(train_dataset, tokenizer, max_length)
     result = dataset[0]
-    print(result)
     
     assert len(result["input_ids"]) <= max_length, f"序列长度 {len(result['input_ids'])} 超过了 max_length {max_length}"
     assert len(result["attention_mask"]) <= max_length

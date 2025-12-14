@@ -205,7 +205,6 @@ async def serve_frontend():
 def start_bumblebee_chat_service():
     global chat_service
 
-    # 先解析 yaml_config 参数
     base_parser = argparse.ArgumentParser(add_help=False)
     base_parser.add_argument(
         "--yaml_config",

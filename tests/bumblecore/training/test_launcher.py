@@ -27,16 +27,13 @@ class TestLauncherEndToEnd:
             args = get_args()
             args_dict = vars(args)
             
-            # 模拟 launcher.py 中的处理逻辑
             args_dict.pop('yaml_config', None)
             args_dict.pop('local_rank', None)
             
             config = TrainConfig(**args_dict)
         
-        # 验证 config 是 TrainConfig 实例
         assert isinstance(config, TrainConfig)
         
-        # 验证参数值正确
         assert config.model_name_or_path == 'bert-base-uncased'
         assert config.dataset_path == '/path/to/dataset'
         assert config.output_dir == '/path/to/output'
@@ -45,7 +42,6 @@ class TestLauncherEndToEnd:
         assert config.num_epochs == 5.0
         assert config.learning_rate == 1e-4
         
-        # 验证 yaml_config 和 local_rank 被移除（不应该在 config 中）
         assert not hasattr(config, 'yaml_config')
         assert not hasattr(config, 'local_rank')
 
@@ -82,7 +78,6 @@ class TestLauncherEndToEnd:
                 
                 config = TrainConfig(**args_dict)
             
-            # 验证从 YAML 加载的值
             assert config.model_name_or_path == 'gpt2'
             assert config.dataset_path == '/yaml/dataset'
             assert config.output_dir == '/yaml/output'
@@ -92,7 +87,6 @@ class TestLauncherEndToEnd:
             assert config.learning_rate == 5e-5
             assert config.lora_rank == 16
             
-            # 验证 yaml_config 被移除
             assert not hasattr(config, 'yaml_config')
         finally:
             import os
@@ -115,25 +109,22 @@ class TestLauncherEndToEnd:
             test_args = [
                 'test_script.py',
                 '--yaml_config', config_path,
-                '--model_name_or_path', 'bert-base-uncased',  # 覆盖 YAML
-                '--cutoff_len', '2048',  # 覆盖 YAML
+                '--model_name_or_path', 'bert-base-uncased',  
+                '--cutoff_len', '2048', 
             ]
             
             with patch.object(sys, 'argv', test_args):
                 args = get_args()
                 args_dict = vars(args)
                 
-                # 模拟 launcher.py 中的处理逻辑
                 args_dict.pop('yaml_config', None)
                 args_dict.pop('local_rank', None)
                 
                 config = TrainConfig(**args_dict)
             
-            # 验证命令行参数优先
             assert config.model_name_or_path == 'bert-base-uncased'
             assert config.cutoff_len == 2048
             
-            # 验证 YAML 中的其他值仍然有效
             assert config.dataset_path == '/yaml/dataset'
             assert config.output_dir == '/yaml/output'
         finally:
@@ -155,17 +146,14 @@ class TestLauncherEndToEnd:
             args = get_args()
             args_dict = vars(args)
             
-            # 模拟 launcher.py 中的处理逻辑
             args_dict.pop('yaml_config', None)
             args_dict.pop('local_rank', None)
             
             config = TrainConfig(**args_dict)
         
-        # 验证这些字段不在 config 中
         assert not hasattr(config, 'yaml_config')
         assert not hasattr(config, 'local_rank')
         
-        # 验证其他参数仍然存在
         assert config.model_name_or_path == 'test-model'
         assert config.dataset_path == '/test/dataset'
         assert config.output_dir == '/test/output'
@@ -213,13 +201,11 @@ class TestLauncherEndToEnd:
             args = get_args()
             args_dict = vars(args)
             
-            # 模拟 launcher.py 中的处理逻辑
             args_dict.pop('yaml_config', None)
             args_dict.pop('local_rank', None)
             
             config = TrainConfig(**args_dict)
         
-        # 验证所有参数
         assert config.model_name_or_path == 'bert-base-uncased'
         assert config.dataset_path == '/path/to/dataset'
         assert config.output_dir == '/path/to/output'
@@ -271,7 +257,6 @@ class TestLauncherEndToEnd:
                 args = get_args()
                 args_dict = vars(args)
                 
-                # 模拟 launcher.py 中的处理逻辑
                 args_dict.pop('yaml_config', None)
                 args_dict.pop('local_rank', None)
                 
@@ -284,18 +269,15 @@ class TestLauncherEndToEnd:
         """测试缺少必需字段时应该抛出 ValueError"""
         test_args = [
             'test_script.py',
-            # 缺少 model_name_or_path, dataset_path, output_dir
         ]
         
         with patch.object(sys, 'argv', test_args):
             args = get_args()
             args_dict = vars(args)
             
-            # 模拟 launcher.py 中的处理逻辑
             args_dict.pop('yaml_config', None)
             args_dict.pop('local_rank', None)
             
-            # 确保必需字段为 None 或空字符串，以触发验证错误
             args_dict['model_name_or_path'] = args_dict.get('model_name_or_path') or ""
             args_dict['dataset_path'] = args_dict.get('dataset_path') or ""
             args_dict['output_dir'] = args_dict.get('output_dir') or ""
@@ -310,20 +292,17 @@ class TestLauncherEndToEnd:
             '--model_name_or_path', 'test-model',
             '--dataset_path', '/test/dataset',
             '--output_dir', '/test/output',
-            # 不提供其他参数，使用默认值
         ]
         
         with patch.object(sys, 'argv', test_args):
             args = get_args()
             args_dict = vars(args)
             
-            # 模拟 launcher.py 中的处理逻辑
             args_dict.pop('yaml_config', None)
             args_dict.pop('local_rank', None)
             
             config = TrainConfig(**args_dict)
         
-        # 验证默认值
         assert config.cutoff_len == 1024
         assert config.num_epochs == 3.0
         assert config.learning_rate == 5e-5

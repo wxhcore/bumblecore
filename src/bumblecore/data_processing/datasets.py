@@ -162,9 +162,7 @@ class SFTDataset(Dataset):
                 )
                 reply_end_pos = len(full_tokens)
 
-                assistant_masks[current_pos:reply_end_pos] = [1] * (
-                    reply_end_pos - current_pos
-                )
+                assistant_masks[current_pos:reply_end_pos] = [1] * (reply_end_pos - current_pos)
 
             else:
 

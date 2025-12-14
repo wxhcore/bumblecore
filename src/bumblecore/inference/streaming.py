@@ -49,7 +49,7 @@ def start_chat_session(
             ):
                 print(text, end="", flush=True)
                 response_chunks.append(text)
-            print("\n"+ "="*120)
+            print()
             continue
 
         if enable_history:
@@ -73,7 +73,7 @@ def start_chat_session(
         ):
             print(text, end="", flush=True)
             response_chunks.append(text)
-        print("\n"+ "="*120)
+        print()
 
         full_response = "".join(response_chunks)
 
@@ -84,7 +84,6 @@ def start_chat_session(
 
 
 def bumblebee_streaming_chat():
-    # 先解析 yaml_config 参数
     base_parser = argparse.ArgumentParser(add_help=False)
     base_parser.add_argument(
         "--yaml_config",
@@ -95,7 +94,6 @@ def bumblebee_streaming_chat():
     cfg_args, _ = base_parser.parse_known_args()
     config_path = cfg_args.yaml_config
     
-    # 加载 YAML 配置
     if os.path.isfile(config_path):
         with open(config_path, "r", encoding="utf-8") as f:
             cfg = yaml.safe_load(f) or {}

@@ -1,5 +1,4 @@
-export CUDA_VISIBLE_DEVICES="6,7"
-python tools/merge_lora.py \
+CUDA_VISIBLE_DEVICES="0,1" python tools/merge_lora.py \
   --base_model_path <your base model path> \
   --lora_model_path <your lora model path> \
   --save_path <your save path> \

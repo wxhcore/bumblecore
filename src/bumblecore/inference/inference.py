@@ -219,7 +219,7 @@ class BumblebeeChat:
         self.generator = StreamTextGenerator(self.model, self.tokenizer)
 
     def _build_prompt(self, messages: List[dict], system_prompt: Optional[str]) -> str:
-        if messages[0]["role"] != "system":
+        if messages[0]["role"] != "system" and system_prompt is not None:
             messages = [{"role": "system", "content": system_prompt}] + messages  
         return self.tokenizer.apply_chat_template(messages,tokenize=False,add_generation_prompt=True)
     

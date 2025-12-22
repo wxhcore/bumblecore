@@ -80,17 +80,17 @@ class ChatService:
             sse += ":" + " " * pad_len + "\n\n"
         return sse
 
-    async def chat_stream(self, messages: str) -> AsyncGenerator[str, None]:
+    async def chat_stream(self, user_message: str) -> AsyncGenerator[str, None]:
 
         full_response = ""
         try:
             if self.training_stage == "pretrain":
-                stream = self.bot.stream_chat(messages=messages, **self.default_params)
+                stream = self.bot.stream_chat(messages=user_message, **self.default_params)
             else:
                 if self.enable_history:
-                    messages = self.conversation_history + [{"role": "user", "content": messages}]
+                    messages = self.conversation_history + [{"role": "user", "content": user_message}]
                 else:
-                    messages = [{"role": "user", "content": messages}]
+                    messages = [{"role": "user", "content": user_message}]
                 stream = self.bot.stream_chat(messages=messages, **self.default_params)
 
             for token in stream:
@@ -102,7 +102,7 @@ class ChatService:
             yield self._make_sse({'done': True})
 
             if self.training_stage != "pretrain" and self.enable_history:
-                self.conversation_history.append({"role": "user", "content": messages})
+                self.conversation_history.append({"role": "user", "content": user_message})
                 self.conversation_history.append({"role": "assistant", "content": full_response})
 
         except Exception as e:

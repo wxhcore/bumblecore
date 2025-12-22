@@ -42,12 +42,12 @@ logs/
 wandb/
 tensorboard/
 
-# 数据（通常不提交）
+# 数据
 data/pretrain/
 data/sft/
 data/dpo/
 
-# 实验记录（可选）
+# 实验记录
 experiments/*.md
 !experiments/README.md
 

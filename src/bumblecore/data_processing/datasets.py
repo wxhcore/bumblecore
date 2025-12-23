@@ -71,6 +71,8 @@ class PretrainDataset(Dataset):
 
         if self.tokenizer.eos_token_id is not None:
             text = text + self.tokenizer.eos_token
+        elif self.tokenizer.pad_token_id is not None:
+            text = text + self.tokenizer.pad_token
         elif self.tokenizer.bos_token_id is not None:
             text = text + self.tokenizer.bos_token
 

@@ -11,7 +11,7 @@ From model architecture to inference, from distributed training to loss computat
 [![DeepSpeed](https://img.shields.io/badge/DeepSpeed-Enabled-green)](https://github.com/microsoft/DeepSpeed)
 [![License](https://img.shields.io/badge/License-Apache%202.0-yellow.svg)](https://opensource.org/licenses/Apache-2.0)
 
-[中文文档](./README_zh.md) | English
+[中文](./README_zh.md) | English
 
 </div>
 

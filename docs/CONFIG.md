@@ -1,204 +1,205 @@
-# BumbleCore 配置参数说明
+# BumbleCore Configuration Parameters
 
-BumbleCore 支持通过 YAML 配置文件或命令行参数进行配置。本文档详细说明了所有可用的配置参数。
+BumbleCore supports configuration through YAML configuration files or command-line arguments. This document details all available configuration parameters.
 
-> 💡 **配置优先级**：命令行参数 > YAML 配置文件 > 默认值
-
----
-
-## 📋 目录
-
-- [训练参数](#训练参数)
-  - [基础配置](#🎯-基础配置)
-  - [模型和分词器](#🤖-模型和分词器)
-  - [数据集配置](#📊-数据集配置)
-  - [训练超参数](#🎓-训练超参数)
-  - [批次大小](#💾-批次大小)
-  - [精度设置](#🔢-精度设置)
-  - [DeepSpeed 和分布式](#🚀-deepspeed-和分布式)
-  - [保存和检查点](#💾-保存和检查点-1)
-  - [日志配置](#📈-日志配置)
-  - [LoRA 配置](#🔧-lora-配置)
-  - [DPO 特定参数](#🎯-dpo-特定参数)
-- [推理参数](#推理参数)
-  - [模型加载配置](#🤖-模型加载配置-1)
-  - [对话基础配置](#💬-对话基础配置)
-  - [采样生成参数](#🎲-采样生成参数)
-  - [Web 服务配置](#🌐-web-服务配置仅-bumblechat-使用)
+> 💡 **Configuration Priority**: Command-line arguments > YAML config file > Default values
 
 ---
 
-## 训练参数
+## 📋 Table of Contents
 
-### 🎯 基础配置
-
-| 参数名 | 类型 | 默认值 | 说明 |
-|--------|------|--------|------|
-| `yaml_config` | str | "" | YAML 配置文件路径 |
-| `training_stage` | str | "sft" | 训练阶段：`pretrain`（预训练）、`continue_pretrain`（增量预训练）、`sft`（监督微调）、`dpo`（直接偏好优化） |
-| `finetuning_type` | str | "full" | 微调类型：`full`（全参数微调）、`lora`（LoRA 微调） |
-| `output_dir` | str | "./output" | 模型和日志输出目录 |
-
-**使用说明：**
-- `training_stage` 决定了数据处理方式和损失函数计算方式
-- `finetuning_type` 为 `lora` 时，需要配置 [LoRA 相关参数](#-lora-配置)
-
----
-
-### 🤖 模型和分词器
-
-| 参数名 | 类型 | 默认值 | 说明 |
-|--------|------|--------|------|
-| `model_name_or_path` | str | None | 模型路径或 HuggingFace 模型名称（必填） |
-| `trust_remote_code` | bool | False | 是否信任远程代码（使用自定义模型时需要） |
-| `tokenizer_use_fast` | bool | False | 是否使用快速分词器 |
+- [Training Parameters](#training-parameters)
+  - [Basic Configuration](#🎯-basic-configuration)
+  - [Model and Tokenizer](#🤖-model-and-tokenizer)
+  - [Dataset Configuration](#📊-dataset-configuration)
+  - [Training Hyperparameters](#🎓-training-hyperparameters)
+  - [Batch Size](#💾-batch-size)
+  - [Precision Settings](#🔢-precision-settings)
+  - [DeepSpeed and Distributed](#🚀-deepspeed-and-distributed)
+  - [Save and Checkpoint](#💾-save-and-checkpoint-1)
+  - [Logging Configuration](#📈-logging-configuration)
+  - [LoRA Configuration](#🔧-lora-configuration)
+  - [DPO Specific Parameters](#🎯-dpo-specific-parameters)
+- [Inference Parameters](#inference-parameters)
+  - [Model Loading Configuration](#🤖-model-loading-configuration-1)
+  - [Conversation Basic Configuration](#💬-conversation-basic-configuration)
+  - [Sampling Generation Parameters](#🎲-sampling-generation-parameters)
+  - [Web Service Configuration](#🌐-web-service-configuration-bumblechat-only)
 
 ---
 
-### 📊 数据集配置
+## Training Parameters
 
-| 参数名 | 类型 | 默认值 | 说明 |
-|--------|------|--------|------|
-| `dataset_path` | str | None | 数据集文件路径，支持 `.json` 和 `.jsonl` 格式（必填） |
-| `cutoff_len` | int | 1024 | 最大序列长度（token 数），超过将被截断 |
+### 🎯 Basic Configuration
 
----
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `yaml_config` | str | "" | YAML configuration file path |
+| `training_stage` | str | "sft" | Training stage: `pretrain` (pretraining), `continue_pretrain` (continual pretraining), `sft` (supervised fine-tuning), `dpo` (direct preference optimization) |
+| `finetuning_type` | str | "full" | Fine-tuning type: `full` (full parameter fine-tuning), `lora` (LoRA fine-tuning) |
+| `output_dir` | str | "./output" | Output directory for models and logs |
 
-### 🎓 训练超参数
-
-| 参数名 | 类型 | 默认值 | 说明 |
-|--------|------|--------|------|
-| `num_epochs` | float | 3.0 | 训练轮数，支持小数（如 0.5 表示半个 epoch） |
-| `learning_rate` | float | 5e-5 | 学习率 |
-| `weight_decay` | float | 0.01 | 权重衰减系数，用于 L2 正则化 |
-| `warmup_ratio` | float | 0.1 | 预热步数比例，占总训练步数的百分比 |
-| `lr_scheduler_type` | str | "cosine" | 学习率调度器类型：`linear`、`cosine`、`cosine_with_restarts`、`polynomial`、`constant`、`constant_with_warmup`、`inverse_sqrt`、`reduce_on_plateau`、`cosine_with_min_lr`、`warmup_stable_decay` 等 |
-| `enable_gradient_checkpointing` | bool | False | 是否启用梯度检查点（降低显存占用，但会增加训练时间） |
+**Usage Notes:**
+- `training_stage` determines data processing method and loss function calculation
+- When `finetuning_type` is `lora`, [LoRA related parameters](#-lora-configuration) must be configured
 
 ---
 
-### 💾 批次大小
+### 🤖 Model and Tokenizer
 
-| 参数名 | 类型 | 默认值 | 说明 |
-|--------|------|--------|------|
-| `train_micro_batch_size_per_gpu` | int | 4 | 每个 GPU 的微批次大小 |
-| `gradient_accumulation_steps` | int | 8 | 梯度累积步数<br>**全局批次大小** = `micro_batch_size × GPU数 × gradient_accumulation_steps` |
-
----
-
-### 🔢 精度设置
-
-| 参数名 | 类型 | 默认值 | 说明 |
-|--------|------|--------|------|
-| `train_model_precision` | str | "bf16" | 训练精度：`fp32`（32位浮点）、`fp16`（16位浮点）、`bf16`（Brain Float16） |
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `model_name_or_path` | str | None | Model path or HuggingFace model name (required) |
+| `trust_remote_code` | bool | False | Whether to trust remote code (needed for custom models) |
+| `tokenizer_use_fast` | bool | False | Whether to use fast tokenizer |
 
 ---
 
-### 🚀 DeepSpeed 和分布式
+### 📊 Dataset Configuration
 
-| 参数名 | 类型 | 默认值 | 说明 |
-|--------|------|--------|------|
-| `deepspeed_config_path` | str | None | DeepSpeed 配置文件路径（推荐使用） |
-| `num_local_io_workers` | int | None | 本地 IO 工作线程数 |
-| `average_tokens_across_devices` | bool | False | 是否在设备间平均 token 数（用于负载均衡） |
-| `local_rank` | int | -1 | 分布式训练的本地 GPU 编号（由 DeepSpeed 自动设置） |
-
-**DeepSpeed 配置选择：**
-
-| 配置文件 | ZeRO 阶段 | 显存优化 | 速度 | 适用场景 |
-|---------|----------|---------|------|---------|
-| `ds_z0_config.json` | Stage 0 | 无 | 最快 | 小模型，显存充足 |
-| `ds_z1_config.json` | Stage 1 | 优化器状态分片 | 快 | 中等模型 |
-| `ds_z2_config.json` | Stage 2 | 优化器+梯度分片 | 中等 | 大模型 |
-| `ds_z3_config.json` | Stage 3 | 全部参数分片 | 较慢 | 超大模型，显存不足 |
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `dataset_path` | str | None | Dataset file path, supports `.json` and `.jsonl` formats (required) |
+| `cutoff_len` | int | 1024 | Maximum sequence length (tokens), will be truncated if exceeded |
 
 ---
 
-### 💾 保存和检查点
+### 🎓 Training Hyperparameters
 
-| 参数名 | 类型 | 默认值 | 说明 |
-|--------|------|--------|------|
-| `save_steps` | int | 500 | 每隔多少步保存一次检查点 |
-| `save_total_limit` | int | 3 | 最多保留多少个检查点（旧的会被删除） |
-| `save_last` | bool | False | 是否在训练结束时保存最后一个检查点 |
-
----
-
-### 📈 日志配置
-
-| 参数名 | 类型 | 默认值 | 说明 |
-|--------|------|--------|------|
-| `logging_steps` | int | 1 | 每隔多少步记录一次日志 |
-| `save_train_log` | bool | False | 是否将训练日志保存到文件 |
-| `use_tensorboard` | bool | False | 是否启用 TensorBoard 日志 |
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `num_epochs` | float | 3.0 | Number of training epochs, supports decimals (e.g., 0.5 for half epoch) |
+| `learning_rate` | float | 5e-5 | Learning rate |
+| `weight_decay` | float | 0.01 | Weight decay coefficient for L2 regularization |
+| `warmup_ratio` | float | 0.1 | Warmup step ratio, percentage of total training steps |
+| `lr_scheduler_type` | str | "cosine" | Learning rate scheduler type: `linear`, `cosine`, `cosine_with_restarts`, `polynomial`, `constant`, `constant_with_warmup`, `inverse_sqrt`, `reduce_on_plateau`, `cosine_with_min_lr`, `warmup_stable_decay`, etc. |
+| `enable_gradient_checkpointing` | bool | False | Whether to enable gradient checkpointing (reduces memory usage but increases training time) |
 
 ---
 
-### 🔧 LoRA 配置
+### 💾 Batch Size
 
-> 仅当 `finetuning_type="lora"` 时需要配置
-
-| 参数名 | 类型 | 默认值 | 说明 |
-|--------|------|--------|------|
-| `lora_rank` | int | 64 | LoRA 的秩（rank），控制适配器的大小 |
-| `lora_alpha` | int | 128 | LoRA 的缩放系数，通常设为 `rank × 2` |
-| `lora_dropout` | float | 0.1 | LoRA 层的 dropout 比例 |
-| `lora_target_modules` | list | None | 应用 LoRA 的目标模块，如 `["q_proj", "v_proj"]` |
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `train_micro_batch_size_per_gpu` | int | 4 | Micro batch size per GPU |
+| `gradient_accumulation_steps` | int | 8 | Gradient accumulation steps<br>**Global batch size** = `micro_batch_size × num_GPUs × gradient_accumulation_steps` |
 
 ---
 
-### 🎯 DPO 特定参数
+### 🔢 Precision Settings
 
-> 仅当 `training_stage="dpo"` 时使用
-
-| 参数名 | 类型 | 默认值 | 说明 |
-|--------|------|--------|------|
-| `pref_beta` | float | 0.1 | DPO 损失的 beta 系数，控制偏好强度 |
-| `dpo_label_smoothing` | float | 0.0 | 标签平滑系数 |
-| `sft_weight` | float | 0.0 | SFT 损失权重（与 DPO 损失混合时使用） |
-| `ld_alpha` | float | 1.0 | LD（Length Difference）损失的 alpha 系数 |
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `train_model_precision` | str | "bf16" | Training precision: `fp32` (32-bit float), `fp16` (16-bit float), `bf16` (Brain Float16) |
 
 ---
 
-## 推理参数
+### 🚀 DeepSpeed and Distributed
 
-### 🤖 模型加载配置
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `deepspeed_config_path` | str | None | DeepSpeed configuration file path (recommended) |
+| `num_local_io_workers` | int | None | Number of local I/O worker threads |
+| `average_tokens_across_devices` | bool | False | Whether to average token count across devices (for load balancing) |
+| `local_rank` | int | -1 | Local GPU rank for distributed training (automatically set by DeepSpeed) |
 
-| 参数名 | 类型 | 默认值 | 说明 |
-|--------|------|--------|------|
-| `yaml_config` | str | "" | YAML 配置文件路径 |
-| `model_path` | str | None | 模型路径（必填） |
-| `device_map` | str | "auto" | 设备映射：`auto`（自动）、`cpu`、`cuda:0` 等 |
-| `dtype` | str | "auto" | 模型数据类型：`auto`、`torch.float16`、`torch.bfloat16` 等 |
-| `training_stage` | str | "sft" | 模型训练阶段：`sft`、`dpo`、`pretrain` |
+**DeepSpeed Configuration Options:**
 
----
-
-### 💬 对话基础配置
-
-| 参数名 | 类型 | 默认值 | 说明 |
-|--------|------|--------|------|
-| `system_prompt` | str | None | 系统提示词，用于设定模型角色和行为 |
-| `enable_history` | bool | False | 是否启用多轮对话历史记忆 |
-| `max_new_tokens` | int | None | 最大生成 token 数（None 表示使用模型默认值） |
+| Config File | ZeRO Stage | Memory Optimization | Speed | Use Case |
+|-------------|------------|---------------------|-------|----------|
+| `ds_z0_config.json` | Stage 0 | None | Fastest | Small models, sufficient memory |
+| `ds_z1_config.json` | Stage 1 | Optimizer state sharding | Fast | Medium models |
+| `ds_z2_config.json` | Stage 2 | Optimizer + gradient sharding | Medium | Large models |
+| `ds_z3_config.json` | Stage 3 | Full parameter sharding | Slower | Very large models, limited memory |
 
 ---
 
-### 🎲 采样生成参数
+### 💾 Save and Checkpoint
 
-| 参数名 | 类型 | 默认值 | 说明 |
-|--------|------|--------|------|
-| `do_sample` | bool | False | 是否启用采样（False 表示贪婪解码） |
-| `temperature` | float | None | 采样温度，控制生成随机性<br>- 较低值（0.1-0.5）：更确定性<br>- 较高值（0.7-1.5）：更有创造性 |
-| `top_k` | int | None | Top-K 采样，只从概率最高的 K 个 token 中采样 |
-| `top_p` | float | None | Top-P（Nucleus）采样，累计概率达到 P 时停止 |
-| `repetition_penalty` | float | None | 重复惩罚系数，值 >1.0 减少重复<br>- 1.0：无惩罚<br>- 1.2：轻度惩罚<br>- 1.5+：重度惩罚 |
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `save_steps` | int | 500 | Save checkpoint every N steps |
+| `save_total_limit` | int | 3 | Maximum number of checkpoints to keep (old ones will be deleted) |
+| `save_last` | bool | False | Whether to save the last checkpoint at the end of training |
 
 ---
 
-### 🌐 Web 服务配置（仅 BumbleChat 使用）
+### 📈 Logging Configuration
 
-| 参数名 | 类型 | 默认值 | 说明 |
-|--------|------|--------|------|
-| `host` | str | "127.0.0.1" | Web 服务器监听地址<br>- `127.0.0.1`：仅本机访问<br>- `0.0.0.0`：允许外部访问 |
-| `port` | int | 8000 | Web 服务器端口号 |
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `logging_steps` | int | 1 | Log every N steps |
+| `save_train_log` | bool | False | Whether to save training logs to file |
+| `use_tensorboard` | bool | False | Whether to enable TensorBoard logging |
+
+---
+
+### 🔧 LoRA Configuration
+
+> Only required when `finetuning_type="lora"`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `lora_rank` | int | 64 | LoRA rank, controls adapter size |
+| `lora_alpha` | int | 128 | LoRA scaling factor, usually set to `rank × 2` |
+| `lora_dropout` | float | 0.1 | Dropout rate for LoRA layers |
+| `lora_target_modules` | list | None | Target modules to apply LoRA, e.g., `["q_proj", "v_proj"]` |
+
+---
+
+### 🎯 DPO Specific Parameters
+
+> Only used when `training_stage="dpo"`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `pref_beta` | float | 0.1 | Beta coefficient for DPO loss, controls preference strength |
+| `dpo_label_smoothing` | float | 0.0 | Label smoothing coefficient |
+| `sft_weight` | float | 0.0 | SFT loss weight (used when mixing with DPO loss) |
+| `ld_alpha` | float | 1.0 | Alpha coefficient for LD (Length Difference) loss |
+
+---
+
+## Inference Parameters
+
+### 🤖 Model Loading Configuration
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `yaml_config` | str | "" | YAML configuration file path |
+| `model_path` | str | None | Model path (required) |
+| `device_map` | str | "auto" | Device mapping: `auto` (automatic), `cpu`, `cuda:0`, etc. |
+| `dtype` | str | "auto" | Model data type: `auto`, `torch.float16`, `torch.bfloat16`, etc. |
+| `training_stage` | str | "sft" | Model training stage: `sft`, `dpo`, `pretrain` |
+
+---
+
+### 💬 Conversation Basic Configuration
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `system_prompt` | str | None | System prompt to set model role and behavior |
+| `enable_history` | bool | False | Whether to enable multi-turn conversation history memory |
+| `max_new_tokens` | int | None | Maximum number of tokens to generate (None uses model default) |
+
+---
+
+### 🎲 Sampling Generation Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `do_sample` | bool | False | Whether to enable sampling (False means greedy decoding) |
+| `temperature` | float | None | Sampling temperature, controls generation randomness<br>- Lower values (0.1-0.5): More deterministic<br>- Higher values (0.7-1.5): More creative |
+| `top_k` | int | None | Top-K sampling, sample only from K most probable tokens |
+| `top_p` | float | None | Top-P (Nucleus) sampling, stop when cumulative probability reaches P |
+| `repetition_penalty` | float | None | Repetition penalty coefficient, value >1.0 reduces repetition<br>- 1.0: No penalty<br>- 1.2: Light penalty<br>- 1.5+: Heavy penalty |
+
+---
+
+### 🌐 Web Service Configuration (BumbleChat Only)
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `host` | str | "127.0.0.1" | Web server listening address<br>- `127.0.0.1`: Local access only<br>- `0.0.0.0`: Allow external access |
+| `port` | int | 8000 | Web server port number |
+

@@ -4,121 +4,109 @@
 
 **小核心，大轰鸣 | Small Core, Big Buzz**
 
-一个从零手动实现的大语言模型训练框架，让你完全掌控训练的每一个细节；  
-模型架构到模型推理，从分布式训练到损失计算，一切都触手可及。  
+A hands-on large language model training framework built from scratch, giving you complete control over every training detail.  
+From model architecture to inference, from distributed training to loss computation—everything is at your fingertips.  
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org/)
 [![DeepSpeed](https://img.shields.io/badge/DeepSpeed-Enabled-green)](https://github.com/microsoft/DeepSpeed)
 [![License](https://img.shields.io/badge/License-Apache%202.0-yellow.svg)](https://opensource.org/licenses/Apache-2.0)
 
+[中文文档](./README_zh.md) | English
+
 </div>
 
 ---
 
-## 项目简介
+## Project Overview
 
-### 核心特性
+### Core Features
 
-#### 1️⃣ **完全手动实现的训练循环**
+#### 1️⃣ **Fully Manual Training Loop**
 
-BumbleCore 不依赖任何高层 Trainer 库，所有核心组件均从底层手动实现：
+BumbleCore doesn't rely on any high-level Trainer libraries—every core component is built from the ground up:
 
-- ⚡ **数据处理流程**：自定义数据加载器和预处理管道
-- 🌐 **分布式训练**：手动实现分布式环境配置，深度集成 DeepSpeed
-- 🔄 **训练循环**：完全可控的前向传播、反向传播和参数更新
-- 📊 **损失计算**：灵活的损失函数实现，支持多任务学习
-- 🎲 **推理生成**：手动实现 Top-p、Top-k 采样和 KV Cache 机制
+- Custom data loaders and preprocessing pipelines
+- Manual distributed training environment configuration with deep DeepSpeed integration
+- Fully controllable forward propagation, backward propagation, and parameter update flow
+- Flexible loss function implementation with multi-task learning support
+- Manually implemented inference generation mechanisms including Top-p, Top-k sampling, and KV Cache
 
-> 💡 **为什么选择手动实现？**  
-> 手动实现让你深入理解每一行代码的作用，便于调试、优化和创新。无论是研究新的训练策略，还是针对特定场景进行定制化优化，BumbleCore 都能提供最大的灵活性。
+> 💡 **Why Manual Implementation?**  
+> Manual implementation allows you to deeply understand the purpose of every line of code, making debugging, optimization, and innovation easier. Whether researching new training strategies or customizing for specific scenarios, BumbleCore provides maximum flexibility.
 
-#### 2️⃣ **Bumblebee 模型架构：自由定制你的模型**
+#### 2️⃣ **Bumblebee Model Architecture: Freely Customize Your Model**
 
-BumbleCore 内置了一个名为 **Bumblebee** 的模型架构，提供前所未有的灵活性：该架构参考 Qwen2.5 设计与实现。
+The built-in Bumblebee architecture (inspired by Qwen2.5 design) provides highly flexible configuration capabilities:
 
-- 🧩 **参数量自由调整**：从小型实验模型到大规模生产模型，随心配置
-- 🏗️ **架构动态调整**：轻松增加或减少 Transformer 层数、注意力头数、隐藏层维度等
-- 🔧 **组件级定制**：支持自定义激活函数、归一化方式、注意力机制等
-- 📈 **全阶段训练支持**：
-  - **预训练（Pretraining）**：从零开始训练你的语言模型
-  - **监督微调（SFT）**：基于指令数据进行有监督微调
-  - **直接偏好优化（DPO）**：使用人类偏好数据进行强化学习
+- Supports parameter scaling from small experimental models to large-scale production models
+- Dynamic adjustment of Transformer layers, attention heads, hidden dimensions, and other architectural parameters
+- Customizable activation functions, normalization methods, attention mechanisms, and other components
+- Covers the complete training process: Pretraining, Supervised Fine-Tuning (SFT), Direct Preference Optimization (DPO)
 
-> 🚀 **使用场景**  
-> 想要快速验证一个新的模型设计？或者针对特定领域训练一个轻量级模型？Bumblebee 架构让你能够在几分钟内完成模型配置，开始训练。
+> **Use Cases**  
+> Want to quickly validate a new model design? Or train a lightweight model for a specific domain? The Bumblebee architecture lets you configure your model and start training in minutes.
 
-#### 3️⃣ **通用训练框架：支持主流开源模型**
+#### 3️⃣ **Universal Training Framework: Supporting Mainstream Open-Source Models**
 
-除了自定义的 Bumblebee 架构，BumbleCore 还是一个通用的训练框架：
-
-- 🤗 **开源模型支持**：兼容 Qwen、LLaMA、ChatGLM 等主流开源模型
-- 🔥 **DeepSpeed 深度集成**：底层调用 DeepSpeed，支持 ZeRO 优化、混合精度训练等
-- 🎓 **全流程训练**：
-  - 预训练（Pretraining）
-  - 增量预训练（Continual Pretraining）
-  - 指令微调（Instruction Tuning）
-  - 强化学习（RLHF/DPO）
-- 💾 **高效训练**：支持梯度累积、梯度检查点、激活重计算等内存优化技术
-- 📦 **易于扩展**：模块化设计，方便添加新的模型架构和训练策略
-
-> 🌟 **企业级可靠性**  
-> BumbleCore 不仅适合学术研究，也经过了实际项目的验证，能够稳定支持大规模模型的训练任务。
-
-📖 **[查看详细功能特性文档 →](./docs/FEATURES.md)**
+- Compatible with open-source models like Qwen, LLaMA, ChatGLM, etc.
+- Deep DeepSpeed integration supporting ZeRO optimization and mixed precision training
+- Supports full training pipeline: pretraining, continual pretraining, instruction fine-tuning, reinforcement learning (RLHF/DPO)
+- Built-in memory optimization techniques including gradient accumulation, gradient checkpointing, and activation recomputation
+- Modular design for easy extension of new model architectures and training strategies
 
 ---
 
-## 🎨 设计理念
+## Design Philosophy
 
-BumbleCore 的设计遵循三个核心原则：
+BumbleCore follows three core principles:
 
-1. **透明性**：每一行代码都清晰可见，没有黑盒操作
-2. **灵活性**：从数据到模型，从训练到推理，一切都可定制
-3. **高效性**：充分利用 DeepSpeed 等工具，确保训练效率
-
----
-
-## 🏆 谁适合使用 BumbleCore？
-
-- 🎓 **深度学习研究者**：需要深度定制训练流程，验证新的算法和架构
-- 🛠️ **算法工程师**：希望完全掌控模型训练的每个细节，进行性能优化
-- 📚 **学习者**：想要深入理解大语言模型训练的底层原理
-- 🏢 **企业团队**：需要针对特定业务场景定制化训练方案
+1. **Transparency** - Every line of code is clearly visible with no black-box operations
+2. **Flexibility** - Everything from data to models, training to inference, is customizable
+3. **Efficiency** - Fully leverages tools like DeepSpeed to ensure training efficiency
 
 ---
 
-## 📦 安装
+## Who Should Use BumbleCore?
 
-### 环境要求
+- Deep Learning Researchers: Need deep customization of training processes to validate new algorithms and architectures
+- Algorithm Engineers: Want complete control over model training details for performance optimization
+- Learners: Want to deeply understand the underlying principles of large language model training
+- Enterprise Teams: Need to customize training solutions for specific business scenarios
+
+---
+
+## Installation
+
+### Requirements
 
 - Python >= 3.10
-- Linux 操作系统
+- Linux Operating System
 
-### 安装步骤
+### Installation Steps
 
-#### 1. 克隆仓库
+**1. Clone the Repository**
 
 ```bash
 git clone https://github.com/wxhcore/bumblecore.git
 cd bumblecore
 ```
 
-#### 2. 创建虚拟环境
+**2. Create Virtual Environment**
 
 ```bash
 conda create -n bumblecore_env python=3.10 -y
 conda activate bumblecore_env
 ```
 
-#### 3. 安装依赖
+**3. Install Dependencies**
 
-**基础安装**：
+Basic installation:
 
 ```bash
 pip install -e .
 ```
 
-**可选安装** FlashAttention-2：
+Optional FlashAttention-2 installation:
 
 ```bash
 pip install -e ".[flash-attn]" --no-build-isolation
@@ -126,44 +114,42 @@ pip install -e ".[flash-attn]" --no-build-isolation
 
 ---
 
-## 📊 数据准备
+## Data Preparation
 
-BumbleCore 支持三种训练阶段的数据格式，每种阶段支持不同的数据格式。
+BumbleCore supports different data formats for three training stages. All formats support both JSON and JSONL, with automatic recognition.
 
-### 支持的格式
-> 💡 所有训练阶段均支持 JSON 和 JSONL 两种格式，框架会自动识别。
+### Supported Formats
+> 💡 All training stages support both JSON and JSONL formats with automatic recognition.
 
-| 训练阶段 | 数据格式 | 
-|---------|---------|
-| **预训练** | `{"text": "..."}` |
+| Training Stage | Data Format | 
+|---------------|-------------|
+| **Pretraining** | `{"text": "..."}` |
 | **SFT** | Alpaca / ShareGPT | 
-| **DPO** | Alpaca / ShareGPT（with chosen/rejected） |
+| **DPO** | Alpaca / ShareGPT (with chosen/rejected) |
 
+### Data Examples
 
-### 快速示例
+SFT Alpaca format:
 
-**SFT Alpaca 格式**：
 ```json
-  {
-    "instruction": "解释什么是机器学习",
-    "input": "",
-    "output": "机器学习是人工智能的一个分支..."
-  }
+{
+  "instruction": "Explain what machine learning is",
+  "input": "",
+  "output": "Machine learning is a branch of artificial intelligence..."
+}
 ```
 
-📖 **[查看完整数据格式文档 →](./docs/DATA_FORMAT.md)**
-
-包含详细的字段说明、多种格式示例等。
+**[View Complete Data Format Documentation →](./docs/DATA_FORMAT.md)**
 
 ---
 
-## ⚙️ 配置参数说明
+## Configuration Guide
 
-### Bumblebee 模型参数配置
+### Bumblebee Model Configuration
 
-BumbleCore 提供了多种 Bumblebee 模型规模，从 0.5B 到 72B 参数，满足不同场景需求：
+BumbleCore provides multiple model scale configurations from 0.5B to 72B:
 
-| 字段 | 0.5B | 1.5B | 3B | 7B | 14B | 32B | 72B |
+| Field | 0.5B | 1.5B | 3B | 7B | 14B | 32B | 72B |
 |------|------|------|----|----|-----|-----|-----|
 | **hidden_size** | 896 | 1536 | 2048 | 3584 | 5120 | 5120 | 8192 |
 | **intermediate_size** | 4864 | 8960 | 11008 | 18944 | 13824 | 27648 | 29568 |
@@ -173,30 +159,28 @@ BumbleCore 提供了多种 Bumblebee 模型规模，从 0.5B 到 72B 参数，�
 | **tie_word_embeddings** | true | true | true | false | false | false | false |
 | **vocab_size** | 151936 | 151936 | 151936 | 152064 | 152064 | 152064 | 152064 |
 
-> 📝 **配置文件位置**：可直接修改 `./models/bumblebee/config.json/` 文件即可。
+Configuration file location: `./models/bumblebee/config.json/`
 
-### BumbleCore 训练参数配置
+### Training Parameters Configuration
 
-📖 **[查看完整配置参数文档 →](./docs/CONFIG.md)**
-
-包含所有训练参数的详细说明、使用建议等。
+**[View Complete Configuration Parameters Documentation →](./docs/CONFIG.md)**
 
 ---
 
-## 🚀 快速开始
+## 🚀 Quick Start
 
-BumbleCore 提供灵活的配置方式，支持三种参数配置方法。以下以 **SFT（监督微调）** 为例展示不同的使用方式。
+BumbleCore supports flexible configuration methods. Here's an example using SFT (Supervised Fine-Tuning).
 
-> 💡 **配置优先级**：命令行参数 > YAML 配置文件 > TrainConfig 默认值
+Configuration priority: Command-line arguments > YAML config file > TrainConfig defaults
 
-### 方式一：使用 YAML 配置文件
+### Method 1: Using YAML Configuration File
 
 ```bash
 deepspeed --include localhost:0,1 src/train.py \
     --yaml_config ./configs/sft/sft_full.yaml
 ```
 
-### 方式二：纯命令行执行
+### Method 2: Pure Command Line Execution
 
 ```bash
 deepspeed --include localhost:0,1 src/train.py \
@@ -213,7 +197,7 @@ deepspeed --include localhost:0,1 src/train.py \
     --deepspeed_config_path ./configs/deepspeed/ds_z2_config.json
 ```
 
-### 方式三：命令行覆盖 YAML 配置
+### Method 3: Command Line Override YAML Configuration
 
 ```bash
 deepspeed --include localhost:0,1 src/train.py \
@@ -221,18 +205,16 @@ deepspeed --include localhost:0,1 src/train.py \
     --learning_rate 1e-4
 ```
 
----
+### Using Shell Scripts
 
-### 📜 使用 Shell 脚本执行
+All three methods above can be written as shell scripts for easier management and reuse.
 
-以上三种方式都可以写成 Shell 脚本来执行，便于管理和复用。
+BumbleCore provides pre-configured training scripts in the `scripts/` directory.
 
-BumbleCore 在 `scripts/` 目录下已提供预配置的训练脚本。
+**Usage Steps**:
 
-**使用步骤**：
-
-1. 编辑脚本，修改模型路径、数据集路径等参数
-2. 执行脚本开始训练
+1. Edit the script to modify model paths, dataset paths, and other parameters
+2. Execute the script to start training
 
 ```bash
 bash scripts/sft_full.sh
@@ -240,96 +222,69 @@ bash scripts/sft_full.sh
 
 ---
 
-## 🧪 三阶段完整训练实验
+## Three-Stage Complete Training Experiment
 
-想要从零开始训练一个完整的语言模型？我们提供了详细的实验教程，带你完整体验**预训练 → 监督微调 → 偏好优化**三阶段训练流程。
+Provides a complete tutorial for training a language model from scratch, covering pretraining, supervised fine-tuning, and preference optimization.
 
-### 🎯 快速预览
+### Experiment Configuration
 
-| 阶段 | 数据集 | 规模 | 输出 |
-|------|--------|------|------|
-| **预训练** | [mini_pretrain_dataset](https://www.modelscope.cn/datasets/BazingaLyn/mini_pretrain_dataset) | 1B tokens | 基座模型 |
-| **监督微调** | [alpaca_gpt4_zh](https://huggingface.co/datasets/llamafactory/alpaca_gpt4_zh) | 42.7K samples | 指令模型 |
-| **偏好优化** | [DPO-En-Zh-20k](https://huggingface.co/datasets/llamafactory/DPO-En-Zh-20k) | 10K samples (zh) | 对齐模型 |
+| Stage | Dataset | Scale | Output |
+|-------|---------|-------|--------|
+| **Pretraining** | [mini_pretrain_dataset](https://www.modelscope.cn/datasets/BazingaLyn/mini_pretrain_dataset) | 1B tokens | Base model |
+| **Supervised Fine-tuning** | [alpaca_gpt4_zh](https://huggingface.co/datasets/llamafactory/alpaca_gpt4_zh) | 42.7K samples | Instruction model |
+| **Preference Optimization** | [DPO-En-Zh-20k](https://huggingface.co/datasets/llamafactory/DPO-En-Zh-20k) | 10K samples (zh) | Aligned model |
 
-📖 **[查看完整实验教程 →](./docs/TUTORIAL.md)**
+**[View Complete Experiment Tutorial →](./docs/TUTORIAL.md)**
 
 ---
 
-## 🔗 LoRA 权重合并
+## LoRA Weight Merging
 
-使用 LoRA 训练后，可以将 LoRA 权重合并回基座模型，生成完整的模型文件，便于部署和分发。
-
-**使用步骤**：
-
-1. 编辑合并脚本 `tools/run_merge_lora.sh`，修改模型路径参数
-2. 执行脚本：
+After training with LoRA, you can merge LoRA weights back into the base model to generate complete model files.
 
 ```bash
+# Edit tools/run_merge_lora.sh to modify model path parameters then execute
 bash tools/run_merge_lora.sh
 ```
 
-合并完成后，保存目录将包含完整的模型权重和分词器。
-
 ---
 
-## 🎯 模型推理
+## Model Inference
 
-训练完成后，BumbleCore 提供灵活的推理方式，支持 YAML 配置和命令行参数。
+After training, BumbleCore provides flexible inference methods supporting both YAML configuration and command-line arguments.
 
-> 💡 **配置优先级**：命令行参数 > YAML 配置文件 > 默认值
+### Command Line Interactive Chat
 
-### 使用流程
+Configuration file: `configs/inference/chat.yaml`
 
-1. **配置参数**：编辑 YAML 配置文件或准备命令行参数
-2. **执行推理**：运行脚本或命令开始推理
-
----
-
-### 命令行交互式对话
-
-**配置文件位置**：`configs/inference/chat.yaml`
-
-**使用步骤**：
-
-1. 编辑配置文件，或直接在`scripts/chat.sh`添加命令行参数
-
-2. 执行推理脚本：
 ```bash
 bash scripts/chat.sh
 ```
----
 
-### Web 界面（BumbleChat）
+### Web Interface (BumbleChat)
 
-**配置文件位置**：`configs/inference/bumblechat.yaml`
+Configuration file: `configs/inference/bumblechat.yaml`
 
-**使用步骤**：
-
-1. 编辑配置文件，或直接在`bash scripts/bumblechat.sh`添加命令行参数
-
-2. 执行推理脚本：
 ```bash
 bash scripts/bumblechat.sh
 ```
 
-![BumbleChat Web 界面](assets/bumblechat.png)
+![BumbleChat Web Interface](assets/bumblechat.png)
 
-3. 服务启动后，支持 OpenAI 兼容的 API 请求
+After the service starts, it supports OpenAI-compatible API calls:
 
-**OpenAI API 兼容接口**：
 ```python
 from openai import OpenAI
 
 client = OpenAI(
-    base_url="<启动服务的api地址>/v1",
+    base_url="<your service API address>/v1",
     api_key="dummy" 
 )
 
 response = client.chat.completions.create(
     model="bumblebee", 
     messages=[
-        {"role": "user", "content": "你好，介绍一下你自己"}
+        {"role": "user", "content": "Hello, please introduce yourself"}
     ],
     temperature=0.7,
     max_completion_tokens=2048
@@ -339,3 +294,4 @@ print(response.choices[0].message.content)
 ```
 
 ---
+

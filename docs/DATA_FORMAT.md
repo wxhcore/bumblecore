@@ -1,247 +1,255 @@
-# BumbleCore 数据格式说明
+# BumbleCore Data Format Guide
 
-本文档详细说明 BumbleCore 支持的各种数据格式，帮助你准备训练数据。
+This document details the various data formats supported by BumbleCore to help you prepare training data.
 
-> 💡 **格式支持**：所有训练阶段均支持 **JSON** 和 **JSONL** 两种文件格式，框架会自动识别并处理。
-
----
-
-## 📋 目录
-
-- [预训练数据格式](#1️⃣-预训练数据格式)
-- [SFT（监督微调）数据格式](#2️⃣-sft监督微调数据格式)
-  - [Alpaca 格式](#格式一alpaca-格式)
-  - [ShareGPT 格式](#格式二sharegpt-格式)
-- [DPO（直接偏好优化）数据格式](#3️⃣-dpo直接偏好优化数据格式)
-  - [Alpaca 格式](#格式一alpaca-格式-1)
-  - [ShareGPT 格式](#格式二sharegpt-格式-1)
-- [数据准备建议](#📝-数据准备建议)
+> 💡 **Format Support**: All training stages support both **JSON** and **JSONL** file formats, with automatic recognition and processing.
 
 ---
 
-## 1️⃣ 预训练数据格式
+## 📋 Table of Contents
 
-### 格式：
+- [Pretraining Data Format](#1️⃣-pretraining-data-format)
+- [SFT (Supervised Fine-Tuning) Data Format](#2️⃣-sft-supervised-fine-tuning-data-format)
+  - [Alpaca Format](#format-1-alpaca-format)
+  - [ShareGPT Format](#format-2-sharegpt-format)
+- [DPO (Direct Preference Optimization) Data Format](#3️⃣-dpo-direct-preference-optimization-data-format)
+  - [Alpaca Format](#format-1-alpaca-format-1)
+  - [ShareGPT Format](#format-2-sharegpt-format-1)
+- [Data Preparation Tips](#📝-data-preparation-tips)
+
+---
+
+## 1️⃣ Pretraining Data Format
+
+### Format:
 
 ```json
-{"text": "这是第一段预训练文本内容..."}
-{"text": "这是第二段预训练文本内容..."}
-{"text": "这是第三段预训练文本内容..."}
+{"text": "This is the first pretraining text content..."}
+{"text": "This is the second pretraining text content..."}
+{"text": "This is the third pretraining text content..."}
 ```
 
-### 字段说明
+### Field Description
 
-| 字段 | 类型 | 必需 | 说明 |
-|------|------|------|------|
-| `text` | string | ✅ | 预训练的文本内容，可以是文章、代码、对话等任何文本 |
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `text` | string | ✅ | Pretraining text content, can be articles, code, conversations, or any text |
 
 ---
 
-## 2️⃣ SFT（监督微调）数据格式
+## 2️⃣ SFT (Supervised Fine-Tuning) Data Format
 
-SFT 阶段支持两种主流数据格式：**Alpaca** 和 **ShareGPT**。
+SFT stage supports two mainstream data formats: **Alpaca** and **ShareGPT**.
 
-### 格式一：Alpaca 格式
+### Format 1: Alpaca Format
 
-Alpaca 格式是一种简洁的指令-输入-输出三元组格式。
+Alpaca format is a concise instruction-input-output triplet format.
 
-#### 基础格式
+#### Basic Format
 
 ```json
   {
-    "instruction": "解释什么是机器学习",
+    "instruction": "Explain what machine learning is",
     "input": "",
-    "output": "机器学习是人工智能的一个分支..."
+    "output": "Machine learning is a branch of artificial intelligence..."
   },
   {
-    "instruction": "将以下英文翻译成中文",
+    "instruction": "Translate the following English to Chinese",
     "input": "Hello, how are you?",
     "output": "你好，你好吗？"
   }
 ```
 
-#### 字段说明
+#### Field Description
 
-| 字段 | 类型 | 必需 | 说明 |
-|------|------|------|------|
-| `instruction` | string | ✅ | 用户的指令或问题 |
-| `input` | string | ❌ | 补充输入内容，如果为空可以省略或填 `""` |
-| `output` | string | ✅ | 模型的回复内容 |
-| `system` | string | ❌ | 自定义系统提示词，默认为 "You are a helpful assistant." |
-| `tools` | string/list | ❌ | 工具定义，JSON 字符串或列表格式 |
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `instruction` | string | ✅ | User's instruction or question |
+| `input` | string | ❌ | Supplementary input content, can be omitted or filled with `""` if empty |
+| `output` | string | ✅ | Model's response content |
+| `system` | string | ❌ | Custom system prompt, defaults to "You are a helpful assistant." |
+| `tools` | string/list | ❌ | Tool definitions, JSON string or list format |
 
-#### 完整格式示例（包含 system 和 tools）
+#### Complete Format Example (with system and tools)
 
 ```json
     {
-        "system": "你是一个专业的数学导师",
-        "instruction": "解这个方程",
+        "system": "You are a professional math tutor",
+        "instruction": "Solve this equation",
         "input": "x + 2 = 5",
         "output": "x = 3",
-        "tools": "[{\"name\": \"calculator\", \"description\": \"数学计算器\"}]"
+        "tools": "[{\"name\": \"calculator\", \"description\": \"Math calculator\"}]"
     }
 ```
 
-### 格式二：ShareGPT 格式
+### Format 2: ShareGPT Format
 
-ShareGPT 格式是一种对话式格式，支持多轮对话。
+ShareGPT format is a conversational format supporting multi-turn dialogues.
 
-#### 基础格式
+#### Basic Format
 
 ```json
 
   {
     "conversations": [
-      {"from": "human", "value": "你好"},
-      {"from": "gpt", "value": "你好！有什么可以帮助你的吗？"}
+      {"from": "human", "value": "Hello"},
+      {"from": "gpt", "value": "Hello! How can I help you?"}
     ]
   },
   {
     "conversations": [
-      {"from": "human", "value": "解释一下量子计算"},
-      {"from": "gpt", "value": "量子计算是一种利用量子力学原理..."}
+      {"from": "human", "value": "Explain quantum computing"},
+      {"from": "gpt", "value": "Quantum computing is a type of computing that uses quantum mechanics principles..."}
     ]
   }
 
 ```
 
-#### 字段说明
+#### Field Description
 
-| 字段 | 类型 | 必需 | 说明 |
-|------|------|------|------|
-| `conversations` | list | ✅ | 对话列表，包含多轮对话 |
-| `conversations[].from` | string | ✅ | 角色标识：`"system"` / `"human"` / `"gpt"` |
-| `conversations[].value` | string | ✅ | 对话内容 |
-| `tools` | string/list | ❌ | 工具定义 |
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `conversations` | list | ✅ | Conversation list containing multi-turn dialogues |
+| `conversations[].from` | string | ✅ | Role identifier: `"system"` / `"human"` / `"gpt"` |
+| `conversations[].value` | string | ✅ | Conversation content |
+| `tools` | string/list | ❌ | Tool definitions |
 
-#### 多轮对话示例
+#### Multi-turn Conversation Example
 
 ```json
 [
   {
     "conversations": [
-      {"from": "system", "value": "你是一个有帮助的AI助手"},
-      {"from": "human", "value": "什么是深度学习？"},
-      {"from": "gpt", "value": "深度学习是机器学习的一个子领域，它基于多层神经网络..."},
-      {"from": "human", "value": "它有哪些应用？"},
-      {"from": "gpt", "value": "深度学习在图像识别、自然语言处理、语音识别等领域都有广泛应用。"}
+      {"from": "system", "value": "You are a helpful AI assistant"},
+      {"from": "human", "value": "What is deep learning?"},
+      {"from": "gpt", "value": "Deep learning is a subfield of machine learning based on multi-layer neural networks..."},
+      {"from": "human", "value": "What are its applications?"},
+      {"from": "gpt", "value": "Deep learning has wide applications in image recognition, natural language processing, speech recognition, and more."}
     ]
   }
 ]
 ```
 
-#### 带工具的示例
+#### Example with Tools
 
 ```json
 [
   {
     "conversations": [
-      {"from": "system", "value": "你是一个专业的翻译助手"},
-      {"from": "human", "value": "将'Hello'翻译成法语"},
+      {"from": "system", "value": "You are a professional translation assistant"},
+      {"from": "human", "value": "Translate 'Hello' to French"},
       {"from": "gpt", "value": "Bonjour"}
     ],
-    "tools": "[{\"name\": \"translator\", \"description\": \"多语言翻译工具\"}]"
+    "tools": "[{\"name\": \"translator\", \"description\": \"Multi-language translation tool\"}]"
   }
 ]
 ```
 
 ---
 
-## 3️⃣ DPO（直接偏好优化）数据格式
+## 3️⃣ DPO (Direct Preference Optimization) Data Format
 
-DPO 数据包含 **chosen**（偏好回复）和 **rejected**（非偏好回复）两个回复，**ShareGPT** 格式。
+DPO data contains **chosen** (preferred response) and **rejected** (non-preferred response) replies, supporting both **Alpaca** and **ShareGPT** formats.
 
-### 格式一：Alpaca 格式
+### Format 1: Alpaca Format
 
-#### 基础格式
-
-```json
-[
-  {
-    "instruction": "写一首关于春天的诗",
-    "input": "",
-    "chosen": "春风拂面花满园，蝴蝶翩翩舞翻天。绿柳轻摇迎暖日，莺歌燕舞乐无边。",
-    "rejected": "春天来了，花开了，很美。"
-  }
-]
-```
-
-#### 字段说明
-
-| 字段 | 类型 | 必需 | 说明 |
-|------|------|------|------|
-| `instruction` | string | ✅ | 用户的指令或问题 |
-| `input` | string | ❌ | 补充输入内容 |
-| `chosen` | string | ✅ | 更好的回复（偏好回复） |
-| `rejected` | string | ✅ | 较差的回复（非偏好回复） |
-| `system` | string | ❌ | 自定义系统提示词 |
-| `tools` | string/list | ❌ | 工具定义 |
-
-#### 完整格式示例
+#### Basic Format
 
 ```json
 [
   {
-    "system": "你是一个富有诗意的诗人",
-    "instruction": "写一首关于海洋的诗",
+    "instruction": "Write a poem about spring",
     "input": "",
-    "chosen": "浪花轻吟千古曲，潮汐诉说万年情。碧波荡漾映星月，深邃无垠藏乾坤。",
-    "rejected": "大海很大，也很蓝。",
-    "tools": "[{\"name\": \"rhyme_suggester\", \"description\": \"押韵建议工具\"}]"
+    "chosen": "Spring breeze caresses the blooming garden fair, Butterflies dance gracefully through the air. Green willows sway to greet the warming sun, Birds sing and swallows soar, their joy has just begun.",
+    "rejected": "Spring has come, flowers bloom, it's beautiful."
   }
 ]
 ```
 
-### 格式二：ShareGPT 格式
+#### Field Description
 
-#### 基础格式
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `instruction` | string | ✅ | User's instruction or question |
+| `input` | string | ❌ | Supplementary input content |
+| `chosen` | string | ✅ | Better response (preferred response) |
+| `rejected` | string | ✅ | Worse response (non-preferred response) |
+| `system` | string | ❌ | Custom system prompt |
+| `tools` | string/list | ❌ | Tool definitions |
+
+#### Complete Format Example
+
+```json
+[
+  {
+    "system": "You are a poetic poet",
+    "instruction": "Write a poem about the ocean",
+    "input": "",
+    "chosen": "Waves gently hum their ancient tune, Tides tell tales of a thousand moons. Blue waters dance with stars aglow, Deep and vast, where secrets flow.",
+    "rejected": "The ocean is big and also blue.",
+    "tools": "[{\"name\": \"rhyme_suggester\", \"description\": \"Rhyme suggestion tool\"}]"
+  }
+]
+```
+
+### Format 2: ShareGPT Format
+
+#### Basic Format
 
 ```json
 [
   {
     "conversations": [
-      {"from": "human", "value": "你好"},
-      {"from": "gpt", "value": "你好！"},
-      {"from": "human", "value": "你今天怎么样？"}
+      {"from": "human", "value": "Hello"},
+      {"from": "gpt", "value": "Hello!"},
+      {"from": "human", "value": "How are you today?"}
     ],
-    "chosen": {"from": "gpt", "value": "我很好，谢谢关心！今天过得很充实。"},
-    "rejected": {"from": "gpt", "value": "还行吧。"}
+    "chosen": {"from": "gpt", "value": "I'm doing great, thanks for asking! I've had a very productive day."},
+    "rejected": {"from": "gpt", "value": "Okay I guess."}
   }
 ]
 ```
 
-#### 字段说明
+#### Field Description
 
-| 字段 | 类型 | 必需 | 说明 |
-|------|------|------|------|
-| `conversations` | list | ✅ | 对话历史，包含前面的多轮对话 |
-| `chosen` | object | ✅ | 偏好的最后一轮回复 |
-| `chosen.from` | string | ✅ | 通常为 `"gpt"` |
-| `chosen.value` | string | ✅ | 偏好回复内容 |
-| `rejected` | object | ✅ | 非偏好的最后一轮回复 |
-| `rejected.from` | string | ✅ | 通常为 `"gpt"` |
-| `rejected.value` | string | ✅ | 非偏好回复内容 |
-| `tools` | string/list | ❌ | 工具定义 |
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `conversations` | list | ✅ | Conversation history containing previous multi-turn dialogues |
+| `chosen` | object | ✅ | Preferred final response |
+| `chosen.from` | string | ✅ | Usually `"gpt"` |
+| `chosen.value` | string | ✅ | Preferred response content |
+| `rejected` | object | ✅ | Non-preferred final response |
+| `rejected.from` | string | ✅ | Usually `"gpt"` |
+| `rejected.value` | string | ✅ | Non-preferred response content |
+| `tools` | string/list | ❌ | Tool definitions |
 
-#### 多轮对话示例
+#### Multi-turn Conversation Example
 
 ```json
 [
   {
     "conversations": [
-      {"from": "system", "value": "你是一个健康顾问"},
-      {"from": "human", "value": "我最近总是感到疲劳"}
+      {"from": "system", "value": "You are a health advisor"},
+      {"from": "human", "value": "I've been feeling tired recently"}
     ],
     "chosen": {
       "from": "gpt",
-      "value": "感到疲劳可能有多种原因。建议你：1. 保证每天7-8小时睡眠；2. 适当运动，每天步行10-15分钟；3. 保持均衡饮食；4. 减少咖啡因摄入。如果持续疲劳，建议咨询医生。"
+      "value": "Fatigue can have multiple causes. I recommend: 1. Ensure 7-8 hours of sleep per night; 2. Exercise moderately, walk for 10-15 minutes daily; 3. Maintain a balanced diet; 4. Reduce caffeine intake. If fatigue persists, please consult a doctor."
     },
     "rejected": {
       "from": "gpt",
-      "value": "可能是你太懒了，多运动就好了。"
+      "value": "You're probably just lazy, exercise more."
     },
-    "tools": "[{\"name\": \"wellness_tips\", \"description\": \"基于证据的健康建议\"}]"
+    "tools": "[{\"name\": \"wellness_tips\", \"description\": \"Evidence-based health advice\"}]"
   }
 ]
 ```
+
+## 📝 Data Preparation Tips
+
+1. **Quality over Quantity**: High-quality, well-formatted data is more valuable than large amounts of noisy data.
+2. **Consistent Formatting**: Ensure all data entries follow the same format structure.
+3. **Validation**: Validate your JSON/JSONL files before training to catch formatting errors.
+4. **Balance**: For DPO, ensure chosen and rejected responses are meaningfully different.
+5. **Diversity**: Include diverse examples covering different use cases and edge cases.
 

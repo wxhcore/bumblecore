@@ -48,11 +48,22 @@ The built-in Bumblebee architecture (inspired by Qwen2.5 design) provides highly
 
 #### 3️⃣ **Universal Training Framework: Supporting Mainstream Open-Source Models**
 
-- Compatible with open-source models like Qwen, LLaMA, ChatGLM, etc.
+- Compatible with open-source models like Qwen, LLaMA, etc.
 - Deep DeepSpeed integration supporting ZeRO optimization and mixed precision training
 - Supports full training pipeline: pretraining, continual pretraining, instruction fine-tuning, reinforcement learning (RLHF/DPO)
 - Built-in memory optimization techniques including gradient accumulation, gradient checkpointing, and activation recomputation
 - Modular design for easy extension of new model architectures and training strategies
+
+### Verified Supported Models
+
+The following model series have been tested and verified by the author to be compatible with BumbleCore:
+
+| Model Series | Verified Stages | Notes |
+|--------------|-----------------|-------|
+| **Qwen Series** | Pretraining, SFT, DPO | ✅ Fully Tested |
+| **LLaMA Series** | Pretraining, SFT, DPO | ✅ Fully Tested |
+
+> 💡 **Note**: Other models with similar architectures should be generally compatible. Users are welcome to test and integrate additional models. If you encounter any compatibility issues, please report them in [Issues](https://github.com/wxhcore/bumblecore/issues).
 
 ---
 
@@ -119,7 +130,6 @@ pip install -e ".[flash-attn]" --no-build-isolation
 BumbleCore supports different data formats for three training stages. All formats support both JSON and JSONL, with automatic recognition.
 
 ### Supported Formats
-> 💡 All training stages support both JSON and JSONL formats with automatic recognition.
 
 | Training Stage | Data Format | 
 |---------------|-------------|
@@ -294,4 +304,3 @@ print(response.choices[0].message.content)
 ```
 
 ---
-

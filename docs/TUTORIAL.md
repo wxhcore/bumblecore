@@ -190,9 +190,9 @@ bash scripts/dpo_lora.sh
 
 ![DPO Training Loss](../assets/train_loss/dpo_training_loss.png)
 
-**Accuracy Curve:**
+<!-- **Accuracy Curve:**
 
-![DPO Training Rewards and Accuracies](../assets/train_loss/dpo_training_rewards_accuracies.png)
+![DPO Training Rewards and Accuracies](../assets/train_loss/dpo_training_rewards_accuracies.png) -->
 
 
 ### 4️⃣ Merge LoRA Weights

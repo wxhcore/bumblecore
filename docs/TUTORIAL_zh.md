@@ -190,9 +190,9 @@ bash scripts/dpo_lora.sh
 
 ![DPO 训练损失](../assets/train_loss/dpo_training_loss.png)
 
-**准确率曲线：**
+<!-- **准确率曲线：**
 
-![DPO 训练奖励和准确率](../assets/train_loss/dpo_training_rewards_accuracies.png)
+![DPO 训练奖励和准确率](../assets/train_loss/dpo_training_rewards_accuracies.png) -->
 
 
 ### 4️⃣ 合并 LoRA 权重

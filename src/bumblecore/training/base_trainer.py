@@ -171,8 +171,8 @@ class BaseTrainer:
 
         if zero_stage == 3 and self.config.training_stage != "pretrain":
             self.dschf = HfDeepSpeedConfig(self.deepspeed_config)
-            with deepspeed.zero.Init(config_dict_or_path=self.deepspeed_config):
-                return _instantiate_model()
+            # with deepspeed.zero.Init(config_dict_or_path=self.deepspeed_config):
+            return _instantiate_model()
         else:
             return _instantiate_model()
 
@@ -520,7 +520,9 @@ class BaseTrainer:
     def _handle_logging_and_progress(self, global_step, computation_result):
         if global_step % self.config.logging_steps == 0:
             lr = self.model_engine.get_lr()[0]
-            grad_norm = self.model_engine.get_global_grad_norm().item()
+            grad_norm = self.model_engine.get_global_grad_norm()
+            if isinstance(grad_norm, torch.Tensor):
+                grad_norm = grad_norm.item()
             epochs_done = min(global_step / self.num_update_steps_per_epoch, math.ceil(self.config.num_epochs))
             self.log_metrics(lr, grad_norm, epochs_done, global_step, computation_result)
         

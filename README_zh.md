@@ -132,8 +132,8 @@ BumbleCore 支持三种训练阶段的不同数据格式，所有格式均支持
 | 训练阶段 | 数据格式 | 
 |---------|---------|
 | **预训练** | `{"text": "..."}` |
-| **SFT** | Alpaca / ShareGPT | 
-| **DPO** | Alpaca / ShareGPT（with chosen/rejected） |
+| **SFT** | Alpaca / ShareGPT / Messages（OpenAI 风格，支持工具调用） | 
+| **DPO** | Alpaca / ShareGPT / Messages（with chosen/rejected，支持完整工具轨迹） |
 
 ### 数据示例
 

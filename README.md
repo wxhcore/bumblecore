@@ -134,8 +134,8 @@ BumbleCore supports different data formats for three training stages. All format
 | Training Stage | Data Format | 
 |---------------|-------------|
 | **Pretraining** | `{"text": "..."}` |
-| **SFT** | Alpaca / ShareGPT | 
-| **DPO** | Alpaca / ShareGPT (with chosen/rejected) |
+| **SFT** | Alpaca / ShareGPT / Messages (OpenAI-style, supports tool calling) | 
+| **DPO** | Alpaca / ShareGPT / Messages (with chosen/rejected, supports full tool trajectories) |
 
 ### Data Examples
 

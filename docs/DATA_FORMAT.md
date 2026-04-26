@@ -73,17 +73,17 @@ Alpaca format is a concise instruction-input-output triplet format.
 | `input` | string | ❌ | Supplementary input content, can be omitted or filled with `""` if empty |
 | `output` | string | ✅ | Model's response content |
 | `system` | string | ❌ | Custom system prompt, defaults to "You are Bumblebee, a helpful AI assistant." |
-| `tools` | string/list | ❌ | Tool definitions, JSON string or list format |
 
-#### Complete Format Example (with system and tools)
+> Alpaca format does not support tool calling. Use ShareGPT or OpenAI-style Messages format for tool-calling data.
+
+#### Complete Format Example (with system)
 
 ```json
     {
         "system": "You are a professional math tutor",
         "instruction": "Solve this equation",
         "input": "x + 2 = 5",
-        "output": "x = 3",
-        "tools": "[{\"name\": \"calculator\", \"description\": \"Math calculator\"}]"
+        "output": "x = 3"
     }
 ```
 
@@ -117,7 +117,7 @@ ShareGPT format is a conversational format supporting multi-turn dialogues.
 | `conversations` | list | ✅ | Conversation list containing multi-turn dialogues |
 | `conversations[].from` | string | ✅ | Role identifier: `"system"` / `"human"` / `"gpt"` |
 | `conversations[].value` | string | ✅ | Conversation content |
-| `tools` | string/list | ❌ | Tool definitions |
+| `tools` | string/list | ❌ | Tool definitions, usually used with `function_call` / `observation` for tool calling. Providing `tools` alone does not mean a tool call happened. |
 
 #### Multi-turn Conversation Example
 
@@ -131,21 +131,6 @@ ShareGPT format is a conversational format supporting multi-turn dialogues.
       {"from": "human", "value": "What are its applications?"},
       {"from": "gpt", "value": "Deep learning has wide applications in image recognition, natural language processing, speech recognition, and more."}
     ]
-  }
-]
-```
-
-#### Example with Tools
-
-```json
-[
-  {
-    "conversations": [
-      {"from": "system", "value": "You are a professional translation assistant"},
-      {"from": "human", "value": "Translate 'Hello' to French"},
-      {"from": "gpt", "value": "Bonjour"}
-    ],
-    "tools": "[{\"name\": \"translator\", \"description\": \"Multi-language translation tool\"}]"
   }
 ]
 ```
@@ -298,7 +283,8 @@ DPO data contains **chosen** (preferred response) and **rejected** (non-preferre
 | `chosen` | string | ✅ | Better response (preferred response) |
 | `rejected` | string | ✅ | Worse response (non-preferred response) |
 | `system` | string | ❌ | Custom system prompt |
-| `tools` | string/list | ❌ | Tool definitions |
+
+> Alpaca format does not support tool calling. Use ShareGPT or OpenAI-style Messages format for tool-calling data.
 
 #### Complete Format Example
 
@@ -309,8 +295,7 @@ DPO data contains **chosen** (preferred response) and **rejected** (non-preferre
     "instruction": "Write a poem about the ocean",
     "input": "",
     "chosen": "Waves gently hum their ancient tune, Tides tell tales of a thousand moons. Blue waters dance with stars aglow, Deep and vast, where secrets flow.",
-    "rejected": "The ocean is big and also blue.",
-    "tools": "[{\"name\": \"rhyme_suggester\", \"description\": \"Rhyme suggestion tool\"}]"
+    "rejected": "The ocean is big and also blue."
   }
 ]
 ```

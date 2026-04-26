@@ -73,17 +73,17 @@ Alpaca 格式是一种简洁的指令-输入-输出三元组格式。
 | `input` | string | ❌ | 补充输入内容，如果为空可以省略或填 `""` |
 | `output` | string | ✅ | 模型的回复内容 |
 | `system` | string | ❌ | 自定义系统提示词，默认为 "You are Bumblebee, a helpful AI assistant." |
-| `tools` | string/list | ❌ | 工具定义，JSON 字符串或列表格式 |
 
-#### 完整格式示例（包含 system 和 tools）
+> Alpaca 格式不支持工具调用。如需训练工具调用数据，请使用 ShareGPT 或 OpenAI 风格的 Messages 格式。
+
+#### 完整格式示例（包含 system）
 
 ```json
     {
         "system": "你是一个专业的数学导师",
         "instruction": "解这个方程",
         "input": "x + 2 = 5",
-        "output": "x = 3",
-        "tools": "[{\"name\": \"calculator\", \"description\": \"数学计算器\"}]"
+        "output": "x = 3"
     }
 ```
 
@@ -117,7 +117,7 @@ ShareGPT 格式是一种对话式格式，支持多轮对话。
 | `conversations` | list | ✅ | 对话列表，包含多轮对话 |
 | `conversations[].from` | string | ✅ | 角色标识：`"system"` / `"human"` / `"gpt"` |
 | `conversations[].value` | string | ✅ | 对话内容 |
-| `tools` | string/list | ❌ | 工具定义 |
+| `tools` | string/list | ❌ | 工具定义，通常与 `function_call` / `observation` 一起用于工具调用；单独提供 `tools` 不代表发生了工具调用 |
 
 #### 多轮对话示例
 
@@ -131,21 +131,6 @@ ShareGPT 格式是一种对话式格式，支持多轮对话。
       {"from": "human", "value": "它有哪些应用？"},
       {"from": "gpt", "value": "深度学习在图像识别、自然语言处理、语音识别等领域都有广泛应用。"}
     ]
-  }
-]
-```
-
-#### 带工具的示例
-
-```json
-[
-  {
-    "conversations": [
-      {"from": "system", "value": "你是一个专业的翻译助手"},
-      {"from": "human", "value": "将'Hello'翻译成法语"},
-      {"from": "gpt", "value": "Bonjour"}
-    ],
-    "tools": "[{\"name\": \"translator\", \"description\": \"多语言翻译工具\"}]"
   }
 ]
 ```
@@ -298,7 +283,8 @@ DPO 数据包含 **chosen**（偏好回复）和 **rejected**（非偏好回复�
 | `chosen` | string | ✅ | 更好的回复（偏好回复） |
 | `rejected` | string | ✅ | 较差的回复（非偏好回复） |
 | `system` | string | ❌ | 自定义系统提示词 |
-| `tools` | string/list | ❌ | 工具定义 |
+
+> Alpaca 格式不支持工具调用。如需训练工具调用数据，请使用 ShareGPT 或 OpenAI 风格的 Messages 格式。
 
 #### 完整格式示例
 
@@ -309,8 +295,7 @@ DPO 数据包含 **chosen**（偏好回复）和 **rejected**（非偏好回复�
     "instruction": "写一首关于海洋的诗",
     "input": "",
     "chosen": "浪花轻吟千古曲，潮汐诉说万年情。碧波荡漾映星月，深邃无垠藏乾坤。",
-    "rejected": "大海很大，也很蓝。",
-    "tools": "[{\"name\": \"rhyme_suggester\", \"description\": \"押韵建议工具\"}]"
+    "rejected": "大海很大，也很蓝。"
   }
 ]
 ```

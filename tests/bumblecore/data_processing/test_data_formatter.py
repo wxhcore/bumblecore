@@ -75,7 +75,7 @@ def test_sft_alpaca_no_input():
     assert result == expected
 
 
-def test_sft_alpaca_with_system_and_tools():
+def test_sft_alpaca_with_system_ignores_tools():
     formatter = DataFormatter("sft")
     data = [
         {
@@ -94,7 +94,7 @@ def test_sft_alpaca_with_system_and_tools():
                 {"role": "user", "content": "Solve the equation\nx + 2 = 5"},
                 {"role": "assistant", "content": "x = 3"},
             ],
-            "tools": [{"name": "calculator", "description": "Evaluates math expressions"}],
+            "tools": None,
         }
     ]
     assert result == expected
@@ -269,7 +269,7 @@ def test_dpo_alpaca():
 
 
 
-def test_dpo_alpaca_with_system_and_tools():
+def test_dpo_alpaca_with_system_ignores_tools():
     tools = [{"name": "rhyme_suggester", "description": "Suggests rhyming words"}]
     data = [
         {
@@ -290,7 +290,7 @@ def test_dpo_alpaca_with_system_and_tools():
                     {"role": "user", "content": "Write a poem about the ocean"},
                     {"role": "assistant", "content": "The waves whisper secrets..."},
                 ],
-                "tools": tools,
+                "tools": None,
             },
             "rejected_messages": {
                 "messages": [
@@ -298,7 +298,7 @@ def test_dpo_alpaca_with_system_and_tools():
                     {"role": "user", "content": "Write a poem about the ocean"},
                     {"role": "assistant", "content": "It's big and blue."},
                 ],
-                "tools": tools,
+                "tools": None,
             },
         }
     ]

@@ -143,7 +143,6 @@ class DataFormatter:
             instruction = item.get("instruction")
             input_text = item.get("input") or None
             output = item.get("output")
-            tools = self._parse_tools(item.get("tools"))
 
             if input_text:
                 instruction += "\n" + input_text
@@ -154,7 +153,7 @@ class DataFormatter:
                 {"role": "assistant", "content": output},
             ]
 
-            samples.append({"messages": messages, "tools": tools})
+            samples.append({"messages": messages, "tools": None})
 
         return samples
 
@@ -205,7 +204,6 @@ class DataFormatter:
                 instruction += "\n" + input_text
             chosen = item.get("chosen")
             rejected = item.get("rejected")
-            tools = self._parse_tools(item.get("tools"))
 
             messages = [
                 {"role": "system", "content": system},
@@ -217,8 +215,8 @@ class DataFormatter:
 
             samples.append(
                 {
-                    "chosen_messages": {"messages": chosen_messages, "tools": tools},
-                    "rejected_messages": {"messages": rejected_messages, "tools": tools},
+                    "chosen_messages": {"messages": chosen_messages, "tools": None},
+                    "rejected_messages": {"messages": rejected_messages, "tools": None},
                 }
             )
 

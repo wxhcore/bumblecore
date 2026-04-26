@@ -12,10 +12,15 @@ This document details the various data formats supported by BumbleCore to help y
 - [SFT (Supervised Fine-Tuning) Data Format](#2️⃣-sft-supervised-fine-tuning-data-format)
   - [Alpaca Format](#format-1-alpaca-format)
   - [ShareGPT Format](#format-2-sharegpt-format)
+    - [Tool Calling Support](#tool-calling-support-sharegpt)
+  - [Messages Format (OpenAI-style)](#format-3-messages-format-openai-style)
 - [DPO (Direct Preference Optimization) Data Format](#3️⃣-dpo-direct-preference-optimization-data-format)
   - [Alpaca Format](#format-1-alpaca-format-1)
   - [ShareGPT Format](#format-2-sharegpt-format-1)
+  - [Messages Format (OpenAI-style)](#format-3-messages-format-openai-style-1)
 - [Data Preparation Tips](#📝-data-preparation-tips)
+
+> 🔍 **Format auto-detection**: The data formatter detects the input format by inspecting the first sample's top-level keys, in priority order: `messages` → `conversations` → `instruction`. Make sure each file uses a single consistent format.
 
 ---
 
@@ -39,7 +44,7 @@ This document details the various data formats supported by BumbleCore to help y
 
 ## 2️⃣ SFT (Supervised Fine-Tuning) Data Format
 
-SFT stage supports two mainstream data formats: **Alpaca** and **ShareGPT**.
+SFT stage supports three formats: **Alpaca**, **ShareGPT**, and OpenAI-style **Messages**.
 
 ### Format 1: Alpaca Format
 
@@ -67,7 +72,7 @@ Alpaca format is a concise instruction-input-output triplet format.
 | `instruction` | string | ✅ | User's instruction or question |
 | `input` | string | ❌ | Supplementary input content, can be omitted or filled with `""` if empty |
 | `output` | string | ✅ | Model's response content |
-| `system` | string | ❌ | Custom system prompt, defaults to "You are a helpful assistant." |
+| `system` | string | ❌ | Custom system prompt, defaults to "You are Bumblebee, a helpful AI assistant." |
 | `tools` | string/list | ❌ | Tool definitions, JSON string or list format |
 
 #### Complete Format Example (with system and tools)
@@ -145,11 +150,129 @@ ShareGPT format is a conversational format supporting multi-turn dialogues.
 ]
 ```
 
+#### Tool Calling Support (ShareGPT)
+
+ShareGPT format supports tool calling via two extra `from` values:
+
+| `from` | Description |
+|--------|-------------|
+| `function_call` | The assistant invokes a tool. `value` is a JSON string with `name` and `arguments`. |
+| `observation`   | Tool's return value. Must immediately follow a `function_call` or another `observation`. |
+
+These two roles are converted internally to the OpenAI / Qwen tool-calling structure (`assistant.tool_calls` and `role: "tool"`) before being passed to the chat template.
+
+```json
+[
+  {
+    "conversations": [
+      {"from": "human", "value": "What's the weather in Beijing?"},
+      {"from": "function_call", "value": "{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Beijing\"}}"},
+      {"from": "observation", "value": "{\"city\": \"Beijing\", \"temperature\": 18, \"condition\": \"sunny\"}"},
+      {"from": "gpt", "value": "It's sunny in Beijing today, around 18°C."}
+    ],
+    "tools": "[{\"name\": \"get_weather\", \"description\": \"Look up weather for a city\", \"parameters\": {\"type\": \"object\", \"properties\": {\"city\": {\"type\": \"string\"}}, \"required\": [\"city\"]}}]"
+  }
+]
+```
+
+> ⚠️ Samples with malformed tool-calling structure (e.g. an `observation` not preceded by a `function_call`) are skipped with a warning at load time. See `datasets/glaive_toolcall_zh_demo.json` for a real example.
+
+### Format 3: Messages Format (OpenAI-style)
+
+If your data is already in OpenAI / Qwen `messages` form (e.g. exported from a chat API), you can use it directly. This is the recommended format for tool-calling data because it requires no role translation.
+
+#### Basic Format
+
+```json
+[
+  {
+    "messages": [
+      {"role": "user", "content": "Explain large language models in one sentence."},
+      {"role": "assistant", "content": "An LLM is a deep neural network trained on massive text corpora to understand and generate natural language."}
+    ]
+  }
+]
+```
+
+#### Field Description
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `messages` | list | ✅ | OpenAI-style message list |
+| `messages[].role` | string | ✅ | One of `"system"` / `"user"` / `"assistant"` / `"tool"` |
+| `messages[].content` | string \| null | depends | Required for most roles. For an `assistant` message, `content` may be `null` **only if** `tool_calls` is set. `content` and `tool_calls` may also coexist - see "mixed assistant message" below. |
+| `messages[].tool_calls` | list | ❌ | Used when an assistant message invokes tools |
+| `tools` | string/list | ❌ | Tool definitions |
+
+If no `system` message exists at the start, the default system prompt (`"You are Bumblebee, a helpful AI assistant."`) is automatically prepended.
+
+#### Mixed assistant message (text + tool_calls)
+
+An `assistant` message may carry **both** a textual `content` (e.g. a brief reasoning or status update for the user) **and** `tool_calls` in the same message. The Qwen chat template renders the text first, followed by `<tool_call>...</tool_call>` blocks within the same `<|im_start|>assistant ... <|im_end|>` turn:
+
+```json
+{
+  "role": "assistant",
+  "content": "Sure, let me check the weather in Beijing for you.",
+  "tool_calls": [
+    {
+      "type": "function",
+      "function": {"name": "get_weather", "arguments": {"city": "Beijing"}}
+    }
+  ]
+}
+```
+
+This is the recommended pattern when you want the model to learn to verbalize its intent before invoking a tool.
+
+#### Tool Calling Example
+
+```json
+[
+  {
+    "messages": [
+      {"role": "user", "content": "What's the weather in Beijing?"},
+      {
+        "role": "assistant",
+        "content": null,
+        "tool_calls": [
+          {
+            "type": "function",
+            "function": {"name": "get_weather", "arguments": {"city": "Beijing", "unit": "celsius"}}
+          }
+        ]
+      },
+      {"role": "tool", "content": "{\"city\": \"Beijing\", \"temperature\": 18, \"condition\": \"sunny\"}"},
+      {"role": "assistant", "content": "It's sunny in Beijing today, about 18°C."}
+    ],
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "get_weather",
+          "description": "Look up weather for a city",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "city": {"type": "string"},
+              "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]}
+            },
+            "required": ["city"]
+          }
+        }
+      }
+    ]
+  }
+]
+```
+
+> 💡 See `datasets/messages_zh_demo.json` for runnable end-to-end examples.
+
 ---
 
 ## 3️⃣ DPO (Direct Preference Optimization) Data Format
 
-DPO data contains **chosen** (preferred response) and **rejected** (non-preferred response) replies, supporting both **Alpaca** and **ShareGPT** formats.
+DPO data contains **chosen** (preferred response) and **rejected** (non-preferred response) replies, supporting three formats: **Alpaca**, **ShareGPT**, and OpenAI-style **Messages**.
 
 ### Format 1: Alpaca Format
 
@@ -245,11 +368,62 @@ DPO data contains **chosen** (preferred response) and **rejected** (non-preferre
 ]
 ```
 
+### Format 3: Messages Format (OpenAI-style)
+
+You can also feed DPO data in the OpenAI-style `messages` form. The `messages` array carries the prompt history (everything up to but not including the candidate response), and `chosen` / `rejected` carry the two competing assistant responses.
+
+#### Basic Format (string `chosen` / `rejected`)
+
+```json
+[
+  {
+    "messages": [
+      {"role": "user", "content": "Translate to English: 人工智能正在改变我们的生活方式。"}
+    ],
+    "chosen": "Artificial intelligence is changing the way we live.",
+    "rejected": "AI change life."
+  }
+]
+```
+
+#### Object form `chosen` / `rejected`
+
+```json
+[
+  {
+    "messages": [
+      {"role": "system", "content": "You are a patient math tutor. Always show your steps."},
+      {"role": "user", "content": "A rectangle has length 8 and width 5. Find the area and perimeter."}
+    ],
+    "chosen": {
+      "role": "assistant",
+      "content": "Area = 8 × 5 = 40. Perimeter = 2 × (8 + 5) = 26. So area is 40 and perimeter is 26."
+    },
+    "rejected": {
+      "role": "assistant",
+      "content": "40 and 26."
+    }
+  }
+]
+```
+
+#### Field Description
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `messages` | list | ✅ | Conversation history, up to and including the final user turn |
+| `chosen` | string \| object | ✅ | Preferred final assistant response. String, or `{"role": "assistant", "content": "..."}` |
+| `rejected` | string \| object | ✅ | Non-preferred final assistant response, same form as `chosen` |
+| `tools` | string/list | ❌ | Tool definitions |
+
+> 💡 See `datasets/dpo_messages_zh_demo.json` for runnable end-to-end examples.
+
 ## 📝 Data Preparation Tips
 
 1. **Quality over Quantity**: High-quality, well-formatted data is more valuable than large amounts of noisy data.
-2. **Consistent Formatting**: Ensure all data entries follow the same format structure.
+2. **Consistent Formatting**: All samples within a single file should use the same format - do not mix formats.
 3. **Validation**: Validate your JSON/JSONL files before training to catch formatting errors.
 4. **Balance**: For DPO, ensure chosen and rejected responses are meaningfully different.
 5. **Diversity**: Include diverse examples covering different use cases and edge cases.
+6. **Tool-calling data**: Prefer the Messages format for tool-calling samples - it maps 1:1 to the chat template and is the least error-prone.
 

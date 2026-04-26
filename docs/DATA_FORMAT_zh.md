@@ -187,7 +187,7 @@ ShareGPT 通过两个额外的 `from` 取值支持工具调用：
 | `messages[].role` | string | ✅ | `"system"` / `"user"` / `"assistant"` / `"tool"` 之一 |
 | `messages[].content` | string \| null | 视情况 | 大多数情况下必填。`assistant` 消息**仅当**带 `tool_calls` 时 `content` 才可以为 `null`；`content` 和 `tool_calls` 也可以**同时**出现（见下文"混合 assistant 消息"）。 |
 | `messages[].tool_calls` | list | ❌ | assistant 触发工具调用时使用 |
-| `tools` | string/list | ❌ | 工具定义 |
+| `tools` | string/list | ❌ | 工具定义，通常与 `messages` 中的 `tool_calls` 配套使用 |
 
 如果首条消息不是 `system`，会自动在最前面注入默认 system prompt（`"You are Bumblebee, a helpful AI assistant."`）。
 
@@ -302,6 +302,8 @@ DPO 数据包含 **chosen**（偏好回复）和 **rejected**（非偏好回复�
 
 ### 格式二：ShareGPT 格式
 
+ShareGPT DPO 使用 `conversations` 表示候选回复之前的对话历史，`chosen` / `rejected` 表示同一上下文下的两条候选最终回复。
+
 #### 基础格式
 
 ```json
@@ -323,39 +325,42 @@ DPO 数据包含 **chosen**（偏好回复）和 **rejected**（非偏好回复�
 | 字段 | 类型 | 必需 | 说明 |
 |------|------|------|------|
 | `conversations` | list | ✅ | 对话历史，包含前面的多轮对话 |
+| `conversations[].from` | string | ✅ | `"system"` / `"human"` / `"gpt"`；工具调用历史还支持 `"function_call"` / `"observation"` |
+| `conversations[].value` | string | ✅ | 对话内容；`function_call` 的值为包含 `name` 和 `arguments` 的 JSON 字符串 |
 | `chosen` | object | ✅ | 偏好的最后一轮回复 |
 | `chosen.from` | string | ✅ | 通常为 `"gpt"` |
 | `chosen.value` | string | ✅ | 偏好回复内容 |
 | `rejected` | object | ✅ | 非偏好的最后一轮回复 |
 | `rejected.from` | string | ✅ | 通常为 `"gpt"` |
 | `rejected.value` | string | ✅ | 非偏好回复内容 |
-| `tools` | string/list | ❌ | 工具定义 |
+| `tools` | string/list | ❌ | 工具定义，只有在 `conversations` 中包含 `function_call` / `observation` 时才表示工具调用训练样本 |
 
-#### 多轮对话示例
+#### 工具调用示例
 
 ```json
 [
   {
     "conversations": [
-      {"from": "system", "value": "你是一个健康顾问"},
-      {"from": "human", "value": "我最近总是感到疲劳"}
+      {"from": "human", "value": "今天北京的天气怎么样？"},
+      {"from": "function_call", "value": "{\"name\": \"get_weather\", \"arguments\": {\"city\": \"北京\"}}"},
+      {"from": "observation", "value": "{\"city\": \"北京\", \"temperature\": 18, \"condition\": \"晴\"}"}
     ],
     "chosen": {
       "from": "gpt",
-      "value": "感到疲劳可能有多种原因。建议你：1. 保证每天7-8小时睡眠；2. 适当运动，每天步行10-15分钟；3. 保持均衡饮食；4. 减少咖啡因摄入。如果持续疲劳，建议咨询医生。"
+      "value": "北京今天晴，约 18°C，适合外出。"
     },
     "rejected": {
       "from": "gpt",
-      "value": "可能是你太懒了，多运动就好了。"
+      "value": "我不知道北京天气。"
     },
-    "tools": "[{\"name\": \"wellness_tips\", \"description\": \"基于证据的健康建议\"}]"
+    "tools": "[{\"name\": \"get_weather\", \"description\": \"查询城市天气\", \"parameters\": {\"type\": \"object\", \"properties\": {\"city\": {\"type\": \"string\"}}, \"required\": [\"city\"]}}]"
   }
 ]
 ```
 
 ### 格式三：Messages 格式（OpenAI 风格）
 
-DPO 数据也可以使用 OpenAI 风格的 `messages` 形式：`messages` 承载到最后一轮 user 为止的对话历史，`chosen` / `rejected` 分别给出两条候选 assistant 回复。
+DPO 数据也可以使用 OpenAI 风格的 `messages` 形式：`messages` 承载候选回复之前的完整对话历史，`chosen` / `rejected` 分别给出两条候选 assistant 回复。候选回复可以是纯文本，也可以包含 `tool_calls`。
 
 #### 基础格式（`chosen` / `rejected` 为字符串）
 
@@ -371,22 +376,48 @@ DPO 数据也可以使用 OpenAI 风格的 `messages` 形式：`messages` 承载
 ]
 ```
 
-#### `chosen` / `rejected` 为对象的形式
+`chosen` / `rejected` 也可以写成 `{"role": "assistant", "content": "..."}` 对象形式；如果候选回复需要调用工具，也可以在对象中包含 `tool_calls`。
+
+#### 工具调用示例
 
 ```json
 [
   {
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "get_weather",
+          "description": "查询城市天气",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "city": {"type": "string"}
+            },
+            "required": ["city"]
+          }
+        }
+      }
+    ],
     "messages": [
-      {"role": "system", "content": "你是一个耐心的数学老师，回答时要给出推导步骤。"},
-      {"role": "user", "content": "一个矩形的长是 8，宽是 5，求它的面积和周长。"}
+      {"role": "user", "content": "今天北京的天气怎么样？"}
     ],
     "chosen": {
       "role": "assistant",
-      "content": "面积 = 长 × 宽 = 8 × 5 = 40；周长 = 2 × (长 + 宽) = 2 × (8 + 5) = 26。"
+      "content": "我来查一下北京当前天气。",
+      "tool_calls": [
+        {
+          "type": "function",
+          "function": {
+            "name": "get_weather",
+            "arguments": {"city": "北京"}
+          }
+        }
+      ]
     },
     "rejected": {
       "role": "assistant",
-      "content": "40 和 26。"
+      "content": "北京今天应该挺好，适合外出。"
     }
   }
 ]
@@ -396,10 +427,10 @@ DPO 数据也可以使用 OpenAI 风格的 `messages` 形式：`messages` 承载
 
 | 字段 | 类型 | 必需 | 说明 |
 |------|------|------|------|
-| `messages` | list | ✅ | 对话历史，到最后一轮 user 为止 |
-| `chosen` | string \| object | ✅ | 偏好的最终 assistant 回复，字符串或 `{"role": "assistant", "content": "..."}` 形式均可 |
+| `messages` | list | ✅ | 候选回复之前的对话历史，可包含历史中的 `assistant.tool_calls` 和 `role: "tool"` |
+| `chosen` | string \| object | ✅ | 偏好的 assistant 回复，字符串或 `{"role": "assistant", "content": "...", "tool_calls": [...]}` 形式均可 |
 | `rejected` | string \| object | ✅ | 非偏好的最终 assistant 回复，形式同 `chosen` |
-| `tools` | string/list | ❌ | 工具定义 |
+| `tools` | string/list | ❌ | 工具定义，通常与 `messages` 中的 `tool_calls` 配套使用 |
 
 > 💡 完整可运行示例参见 `datasets/dpo_messages_zh_demo.json`。
 

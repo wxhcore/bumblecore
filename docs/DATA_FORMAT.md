@@ -187,7 +187,7 @@ If your data is already in OpenAI / Qwen `messages` form (e.g. exported from a c
 | `messages[].role` | string | ✅ | One of `"system"` / `"user"` / `"assistant"` / `"tool"` |
 | `messages[].content` | string \| null | depends | Required for most roles. For an `assistant` message, `content` may be `null` **only if** `tool_calls` is set. `content` and `tool_calls` may also coexist - see "mixed assistant message" below. |
 | `messages[].tool_calls` | list | ❌ | Used when an assistant message invokes tools |
-| `tools` | string/list | ❌ | Tool definitions |
+| `tools` | string/list | ❌ | Tool definitions, usually used with `tool_calls` in `messages` |
 
 If no `system` message exists at the start, the default system prompt (`"You are Bumblebee, a helpful AI assistant."`) is automatically prepended.
 
@@ -302,6 +302,8 @@ DPO data contains **chosen** (preferred response) and **rejected** (non-preferre
 
 ### Format 2: ShareGPT Format
 
+ShareGPT DPO uses `conversations` for the prompt history before the candidate response, and `chosen` / `rejected` for two competing final assistant responses under the same context.
+
 #### Basic Format
 
 ```json
@@ -323,39 +325,42 @@ DPO data contains **chosen** (preferred response) and **rejected** (non-preferre
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `conversations` | list | ✅ | Conversation history containing previous multi-turn dialogues |
+| `conversations[].from` | string | ✅ | `"system"` / `"human"` / `"gpt"`; tool-calling history also supports `"function_call"` / `"observation"` |
+| `conversations[].value` | string | ✅ | Message content. For `function_call`, this is a JSON string with `name` and `arguments`. |
 | `chosen` | object | ✅ | Preferred final response |
 | `chosen.from` | string | ✅ | Usually `"gpt"` |
 | `chosen.value` | string | ✅ | Preferred response content |
 | `rejected` | object | ✅ | Non-preferred final response |
 | `rejected.from` | string | ✅ | Usually `"gpt"` |
 | `rejected.value` | string | ✅ | Non-preferred response content |
-| `tools` | string/list | ❌ | Tool definitions |
+| `tools` | string/list | ❌ | Tool definitions. This is a tool-calling training sample only when `conversations` contains `function_call` / `observation`. |
 
-#### Multi-turn Conversation Example
+#### Tool Calling Example
 
 ```json
 [
   {
     "conversations": [
-      {"from": "system", "value": "You are a health advisor"},
-      {"from": "human", "value": "I've been feeling tired recently"}
+      {"from": "human", "value": "What's the weather in Beijing today?"},
+      {"from": "function_call", "value": "{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Beijing\"}}"},
+      {"from": "observation", "value": "{\"city\": \"Beijing\", \"temperature\": 18, \"condition\": \"sunny\"}"}
     ],
     "chosen": {
       "from": "gpt",
-      "value": "Fatigue can have multiple causes. I recommend: 1. Ensure 7-8 hours of sleep per night; 2. Exercise moderately, walk for 10-15 minutes daily; 3. Maintain a balanced diet; 4. Reduce caffeine intake. If fatigue persists, please consult a doctor."
+      "value": "It's sunny in Beijing today, around 18°C, so it should be comfortable to go outside."
     },
     "rejected": {
       "from": "gpt",
-      "value": "You're probably just lazy, exercise more."
+      "value": "I don't know the weather in Beijing."
     },
-    "tools": "[{\"name\": \"wellness_tips\", \"description\": \"Evidence-based health advice\"}]"
+    "tools": "[{\"name\": \"get_weather\", \"description\": \"Look up weather for a city\", \"parameters\": {\"type\": \"object\", \"properties\": {\"city\": {\"type\": \"string\"}}, \"required\": [\"city\"]}}]"
   }
 ]
 ```
 
 ### Format 3: Messages Format (OpenAI-style)
 
-You can also feed DPO data in the OpenAI-style `messages` form. The `messages` array carries the prompt history (everything up to but not including the candidate response), and `chosen` / `rejected` carry the two competing assistant responses.
+You can also feed DPO data in the OpenAI-style `messages` form. The `messages` array carries the full prompt history before the candidate response, and `chosen` / `rejected` carry the two competing assistant responses. Candidate responses may be plain text or include `tool_calls`.
 
 #### Basic Format (string `chosen` / `rejected`)
 
@@ -371,22 +376,48 @@ You can also feed DPO data in the OpenAI-style `messages` form. The `messages` a
 ]
 ```
 
-#### Object form `chosen` / `rejected`
+`chosen` / `rejected` may also use the object form `{"role": "assistant", "content": "..."}`. If a candidate response should invoke a tool, include `tool_calls` in that object.
+
+#### Tool Calling Example
 
 ```json
 [
   {
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "get_weather",
+          "description": "Look up weather for a city",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "city": {"type": "string"}
+            },
+            "required": ["city"]
+          }
+        }
+      }
+    ],
     "messages": [
-      {"role": "system", "content": "You are a patient math tutor. Always show your steps."},
-      {"role": "user", "content": "A rectangle has length 8 and width 5. Find the area and perimeter."}
+      {"role": "user", "content": "What's the weather in Beijing today?"}
     ],
     "chosen": {
       "role": "assistant",
-      "content": "Area = 8 × 5 = 40. Perimeter = 2 × (8 + 5) = 26. So area is 40 and perimeter is 26."
+      "content": "Let me check the current weather in Beijing.",
+      "tool_calls": [
+        {
+          "type": "function",
+          "function": {
+            "name": "get_weather",
+            "arguments": {"city": "Beijing"}
+          }
+        }
+      ]
     },
     "rejected": {
       "role": "assistant",
-      "content": "40 and 26."
+      "content": "The weather in Beijing should be nice today."
     }
   }
 ]
@@ -396,10 +427,10 @@ You can also feed DPO data in the OpenAI-style `messages` form. The `messages` a
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `messages` | list | ✅ | Conversation history, up to and including the final user turn |
-| `chosen` | string \| object | ✅ | Preferred final assistant response. String, or `{"role": "assistant", "content": "..."}` |
+| `messages` | list | ✅ | Conversation history before the candidate response. May include historical `assistant.tool_calls` and `role: "tool"`. |
+| `chosen` | string \| object | ✅ | Preferred assistant response. String, or `{"role": "assistant", "content": "...", "tool_calls": [...]}` |
 | `rejected` | string \| object | ✅ | Non-preferred final assistant response, same form as `chosen` |
-| `tools` | string/list | ❌ | Tool definitions |
+| `tools` | string/list | ❌ | Tool definitions, usually used with `tool_calls` in `messages` |
 
 > 💡 See `datasets/dpo_messages_zh_demo.json` for runnable end-to-end examples.
 

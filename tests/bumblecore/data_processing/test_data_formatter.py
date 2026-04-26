@@ -704,6 +704,44 @@ def test_dpo_messages_chosen_dict_form():
     assert rejected[-1] == {"role": "assistant", "content": "..."}
 
 
+def test_dpo_messages_chosen_with_tool_calls():
+    """DPO messages 支持偏好回复为 content + tool_calls，非偏好回复为纯文本"""
+    formatter = DataFormatter("dpo")
+    data = [
+        {
+            "messages": [
+                {"role": "user", "content": "今天北京天气怎么样？"},
+            ],
+            "chosen": {
+                "role": "assistant",
+                "content": "我来查一下北京当前天气。",
+                "tool_calls": [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "get_weather",
+                            "arguments": {"city": "北京"},
+                        },
+                    }
+                ],
+            },
+            "rejected": {"role": "assistant", "content": "北京今天应该挺好。"},
+            "tools": [{"type": "function", "function": {"name": "get_weather"}}],
+        }
+    ]
+
+    result = formatter(data)
+    chosen = result[0]["chosen_messages"]["messages"]
+    rejected = result[0]["rejected_messages"]["messages"]
+    assert chosen[-1]["content"] == "我来查一下北京当前天气。"
+    assert chosen[-1]["tool_calls"][0]["function"]["name"] == "get_weather"
+    assert "tool_calls" not in rejected[-1]
+    assert rejected[-1] == {"role": "assistant", "content": "北京今天应该挺好。"}
+    assert result[0]["chosen_messages"]["tools"] == [
+        {"type": "function", "function": {"name": "get_weather"}}
+    ]
+
+
 # ==============================
 # 其他通用测试
 # ==============================

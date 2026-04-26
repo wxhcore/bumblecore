@@ -253,6 +253,18 @@ class DataFormatter:
     def build_dpo_messages_samples(self, dataset):
         samples: list[dict] = []
 
+        def build_candidate_message(candidate):
+            if isinstance(candidate, str):
+                return {"role": "assistant", "content": candidate}
+
+            message = {
+                "role": "assistant",
+                "content": (candidate or {}).get("content", ""),
+            }
+            if candidate and candidate.get("tool_calls"):
+                message["tool_calls"] = candidate["tool_calls"]
+            return message
+
         for idx, item in enumerate(dataset):
             messages = self._ensure_system_message_openai(item["messages"])
 
@@ -264,12 +276,10 @@ class DataFormatter:
 
             chosen = item.get("chosen")
             rejected = item.get("rejected")
-            chosen_content = chosen if isinstance(chosen, str) else (chosen or {}).get("content", "")
-            rejected_content = rejected if isinstance(rejected, str) else (rejected or {}).get("content", "")
             tools = self._parse_tools(item.get("tools"))
 
-            chosen_messages = list(messages) + [{"role": "assistant", "content": chosen_content}]
-            rejected_messages = list(messages) + [{"role": "assistant", "content": rejected_content}]
+            chosen_messages = list(messages) + [build_candidate_message(chosen)]
+            rejected_messages = list(messages) + [build_candidate_message(rejected)]
 
             samples.append(
                 {

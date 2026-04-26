@@ -360,7 +360,11 @@ ShareGPT DPO uses `conversations` for the prompt history before the candidate re
 
 ### Format 3: Messages Format (OpenAI-style)
 
-You can also feed DPO data in the OpenAI-style `messages` form. The `messages` array carries the full prompt history before the candidate response, and `chosen` / `rejected` carry the two competing assistant responses. Candidate responses may be plain text or include `tool_calls`.
+You can also feed DPO data in the OpenAI-style `messages` form. The `messages` array carries the full prompt history before the candidate response, and `chosen` / `rejected` carry the two competing responses. Candidate responses support three forms:
+
+- `string`: a single plain-text assistant response.
+- `object`: a single assistant message, optionally with both `content` and `tool_calls`.
+- `list`: a full candidate message trajectory, which may include `assistant.tool_calls`, `role: "tool"`, and a final assistant response.
 
 #### Basic Format (string `chosen` / `rejected`)
 
@@ -376,7 +380,7 @@ You can also feed DPO data in the OpenAI-style `messages` form. The `messages` a
 ]
 ```
 
-`chosen` / `rejected` may also use the object form `{"role": "assistant", "content": "..."}`. If a candidate response should invoke a tool, include `tool_calls` in that object.
+`chosen` / `rejected` may also use the object form `{"role": "assistant", "content": "..."}`. If a candidate response should invoke a tool, include `tool_calls` in that object. This form is useful for preferring "call a tool" over a direct hallucinated answer, but it does not include the tool result and final answer.
 
 #### Tool Calling Example
 
@@ -423,14 +427,75 @@ You can also feed DPO data in the OpenAI-style `messages` form. The `messages` a
 ]
 ```
 
+#### Full Tool Trajectory Example (`chosen` / `rejected` as message lists)
+
+Use the list form when you want DPO to compare the full tool-use trajectory. During training, assistant turns in the candidate trajectory are supervised (including `<tool_call>` and the final response), while `role: "tool"` messages are masked out.
+
+```json
+[
+  {
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "get_weather",
+          "description": "Look up weather for a city",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "city": {"type": "string"}
+            },
+            "required": ["city"]
+          }
+        }
+      }
+    ],
+    "messages": [
+      {"role": "user", "content": "What's the weather in Beijing today?"}
+    ],
+    "chosen": [
+      {
+        "role": "assistant",
+        "content": "Let me check the current weather in Beijing.",
+        "tool_calls": [
+          {
+            "type": "function",
+            "function": {
+              "name": "get_weather",
+              "arguments": {"city": "Beijing"}
+            }
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "content": "{\"temperature\": 18, \"condition\": \"sunny\"}"
+      },
+      {
+        "role": "assistant",
+        "content": "It's sunny in Beijing today, about 18°C, so it should be comfortable to go outside."
+      }
+    ],
+    "rejected": [
+      {
+        "role": "assistant",
+        "content": "The weather in Beijing should be nice today."
+      }
+    ]
+  }
+]
+```
+
 #### Field Description
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `messages` | list | ✅ | Conversation history before the candidate response. May include historical `assistant.tool_calls` and `role: "tool"`. |
-| `chosen` | string \| object | ✅ | Preferred assistant response. String, or `{"role": "assistant", "content": "...", "tool_calls": [...]}` |
-| `rejected` | string \| object | ✅ | Non-preferred final assistant response, same form as `chosen` |
+| `chosen` | string \| object \| list | ✅ | Preferred candidate response. The list form represents a full candidate message trajectory. |
+| `rejected` | string \| object \| list | ✅ | Non-preferred candidate response, same forms as `chosen` |
 | `tools` | string/list | ❌ | Tool definitions, usually used with `tool_calls` in `messages` |
+
+> 💡 In DPO list trajectories, assistant turns are included in labels and tool turns are masked. This lets DPO compare the full "tool call + final answer" trajectory without teaching the model to generate tool return values.
 
 > 💡 See `datasets/dpo_messages_zh_demo.json` for runnable end-to-end examples.
 

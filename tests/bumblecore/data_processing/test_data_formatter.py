@@ -742,6 +742,58 @@ def test_dpo_messages_chosen_with_tool_calls():
     ]
 
 
+def test_dpo_messages_chosen_list_tool_trajectory():
+    """DPO messages 支持 chosen/rejected 为完整消息轨迹"""
+    formatter = DataFormatter("dpo")
+    data = [
+        {
+            "messages": [
+                {"role": "user", "content": "今天北京天气怎么样？"},
+            ],
+            "chosen": [
+                {
+                    "role": "assistant",
+                    "content": "我来查一下北京当前天气。",
+                    "tool_calls": [
+                        {
+                            "type": "function",
+                            "function": {
+                                "name": "get_weather",
+                                "arguments": {"city": "北京"},
+                            },
+                        }
+                    ],
+                },
+                {"role": "tool", "content": '{"temperature": 18, "condition": "晴"}'},
+                {"role": "assistant", "content": "北京今天晴，18°C，适合外出。"},
+            ],
+            "rejected": [
+                {"role": "assistant", "content": "北京今天应该挺好。"},
+            ],
+            "tools": [{"type": "function", "function": {"name": "get_weather"}}],
+        }
+    ]
+
+    result = formatter(data)
+    chosen = result[0]["chosen_messages"]
+    rejected = result[0]["rejected_messages"]
+    assert chosen["completion_start_idx"] == 2
+    assert rejected["completion_start_idx"] == 2
+    assert chosen["messages"][2]["tool_calls"][0]["function"]["name"] == "get_weather"
+    assert chosen["messages"][3] == {
+        "role": "tool",
+        "content": '{"temperature": 18, "condition": "晴"}',
+    }
+    assert chosen["messages"][-1] == {
+        "role": "assistant",
+        "content": "北京今天晴，18°C，适合外出。",
+    }
+    assert rejected["messages"][-1] == {
+        "role": "assistant",
+        "content": "北京今天应该挺好。",
+    }
+
+
 # ==============================
 # 其他通用测试
 # ==============================

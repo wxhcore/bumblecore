@@ -253,17 +253,20 @@ class DataFormatter:
     def build_dpo_messages_samples(self, dataset):
         samples: list[dict] = []
 
-        def build_candidate_message(candidate):
+        def build_candidate_messages(candidate):
             if isinstance(candidate, str):
-                return {"role": "assistant", "content": candidate}
+                return [{"role": "assistant", "content": candidate}]
+
+            if isinstance(candidate, list):
+                return list(candidate)
 
             message = {
-                "role": "assistant",
+                "role": (candidate or {}).get("role", "assistant"),
                 "content": (candidate or {}).get("content", ""),
             }
             if candidate and candidate.get("tool_calls"):
                 message["tool_calls"] = candidate["tool_calls"]
-            return message
+            return [message]
 
         for idx, item in enumerate(dataset):
             messages = self._ensure_system_message_openai(item["messages"])
@@ -277,14 +280,22 @@ class DataFormatter:
             chosen = item.get("chosen")
             rejected = item.get("rejected")
             tools = self._parse_tools(item.get("tools"))
+            completion_start_idx = len(messages)
 
-            chosen_messages = list(messages) + [build_candidate_message(chosen)]
-            rejected_messages = list(messages) + [build_candidate_message(rejected)]
+            chosen_messages = list(messages) + build_candidate_messages(chosen)
+            rejected_messages = list(messages) + build_candidate_messages(rejected)
+
+            chosen_sample = {"messages": chosen_messages, "tools": tools}
+            rejected_sample = {"messages": rejected_messages, "tools": tools}
+            if isinstance(chosen, list):
+                chosen_sample["completion_start_idx"] = completion_start_idx
+            if isinstance(rejected, list):
+                rejected_sample["completion_start_idx"] = completion_start_idx
 
             samples.append(
                 {
-                    "chosen_messages": {"messages": chosen_messages, "tools": tools},
-                    "rejected_messages": {"messages": rejected_messages, "tools": tools},
+                    "chosen_messages": chosen_sample,
+                    "rejected_messages": rejected_sample,
                 }
             )
 

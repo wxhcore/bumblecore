@@ -777,3 +777,68 @@ def test_chain_dpo_sharegpt_formatter_to_dataset():
     assert "hi" in rejected
     assert "Greet me." not in chosen
     assert "Greet me." not in rejected
+
+
+def test_chain_dpo_messages_tool_trajectory_formatter_to_dataset():
+    """DPO messages 完整工具轨迹: 只监督 completion 中的 assistant 段"""
+    from bumblecore.data_processing import DataFormatter
+
+    raw = [
+        {
+            "tools": [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "get_weather",
+                        "description": "查询城市天气",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {"city": {"type": "string"}},
+                            "required": ["city"],
+                        },
+                    },
+                }
+            ],
+            "messages": [
+                {"role": "user", "content": "今天北京的天气怎么样？"},
+            ],
+            "chosen": [
+                {
+                    "role": "assistant",
+                    "content": "我来查一下北京当前天气。",
+                    "tool_calls": [
+                        {
+                            "type": "function",
+                            "function": {
+                                "name": "get_weather",
+                                "arguments": {"city": "北京"},
+                            },
+                        }
+                    ],
+                },
+                {"role": "tool", "content": '{"temperature": 18, "condition": "晴"}'},
+                {"role": "assistant", "content": "北京今天晴，18°C，适合外出。"},
+            ],
+            "rejected": [
+                {"role": "assistant", "content": "北京今天应该挺好，适合外出。"},
+            ],
+        }
+    ]
+
+    formatted = DataFormatter("dpo")(raw)
+    assert formatted[0]["chosen_messages"]["completion_start_idx"] == 2
+
+    dataset = DPODataset(formatted, tokenizer, max_length=512)
+    result = dataset[0]
+
+    chosen = _supervised_text(result, "chosen_labels")
+    rejected = _supervised_text(result, "rejected_labels")
+    assert "我来查一下北京当前天气。" in chosen
+    assert "<tool_call>" in chosen
+    assert "get_weather" in chosen
+    assert "北京今天晴，18°C，适合外出。" in chosen
+    assert "<tool_response>" not in chosen
+    assert "temperature" not in chosen
+    assert "今天北京的天气怎么样？" not in chosen
+    assert "北京今天应该挺好，适合外出。" in rejected
+    assert "<tool_call>" not in rejected

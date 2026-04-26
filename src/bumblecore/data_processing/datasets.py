@@ -242,7 +242,7 @@ class DPODataset(Dataset):
     def __len__(self):
         return len(self.train_dataset)
 
-    def create_dpo_dataset(self, messages, tools):
+    def create_dpo_dataset(self, messages, tools, completion_start_idx=None):
         full = self.tokenizer.apply_chat_template(
             messages,
             tokenize=True,
@@ -253,20 +253,60 @@ class DPODataset(Dataset):
             tools=tools if tools else None,
         )
 
-        prompt_messages = messages[:-1]
-        prompt_input_ids = self.tokenizer.apply_chat_template(
-            prompt_messages,
-            tokenize=True,
-            add_generation_prompt=True,
-            truncation=True,
-            max_length=self.max_length,
-            tools=tools if tools else None,
-        )
         input_ids = torch.tensor(full["input_ids"], dtype=torch.long)
         attention_mask = torch.tensor(full["attention_mask"], dtype=torch.long)
-        prompt_len = len(prompt_input_ids)
         labels = input_ids.clone()
-        labels[:prompt_len] = -100
+
+        if completion_start_idx is None:
+            prompt_messages = messages[:-1]
+            prompt_input_ids = self.tokenizer.apply_chat_template(
+                prompt_messages,
+                tokenize=True,
+                add_generation_prompt=True,
+                truncation=True,
+                max_length=self.max_length,
+                tools=tools if tools else None,
+            )
+            labels[:len(prompt_input_ids)] = -100
+        else:
+            labels[:] = -100
+            prompt_input_ids = self.tokenizer.apply_chat_template(
+                messages[:completion_start_idx],
+                tokenize=True,
+                add_generation_prompt=True,
+                truncation=True,
+                max_length=self.max_length,
+                tools=tools if tools else None,
+            )
+            current_pos = len(prompt_input_ids)
+
+            for i in range(completion_start_idx, len(messages)):
+                message = messages[i]
+                if message["role"] == "assistant":
+                    context_with_reply = messages[: i + 1]
+                    full_tokens = self.tokenizer.apply_chat_template(
+                        context_with_reply,
+                        tokenize=True,
+                        add_generation_prompt=False,
+                        truncation=True,
+                        max_length=self.max_length,
+                        tools=tools if tools else None,
+                    )
+                    reply_end_pos = min(len(full_tokens), len(input_ids))
+                    if current_pos < reply_end_pos:
+                        labels[current_pos:reply_end_pos] = input_ids[current_pos:reply_end_pos]
+                    current_pos = reply_end_pos
+                else:
+                    prompt_context = messages[: i + 1]
+                    prompt_tokens = self.tokenizer.apply_chat_template(
+                        prompt_context,
+                        tokenize=True,
+                        add_generation_prompt=True,
+                        truncation=True,
+                        max_length=self.max_length,
+                        tools=tools if tools else None,
+                    )
+                    current_pos = min(len(prompt_tokens), len(input_ids))
 
         return dict(
             input_ids=input_ids,
@@ -311,8 +351,16 @@ class DPODataset(Dataset):
         chosen_messages = self.train_dataset[idx]["chosen_messages"]
         rejected_messages = self.train_dataset[idx]["rejected_messages"]
 
-        chosen_data = self.create_dpo_dataset(chosen_messages["messages"], chosen_messages["tools"])
-        rejected_data = self.create_dpo_dataset(rejected_messages["messages"], rejected_messages["tools"])
+        chosen_data = self.create_dpo_dataset(
+            chosen_messages["messages"],
+            chosen_messages["tools"],
+            chosen_messages.get("completion_start_idx"),
+        )
+        rejected_data = self.create_dpo_dataset(
+            rejected_messages["messages"],
+            rejected_messages["tools"],
+            rejected_messages.get("completion_start_idx"),
+        )
 
         self._show_train_sample(
             chosen_input_ids=chosen_data["input_ids"],

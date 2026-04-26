@@ -360,7 +360,11 @@ ShareGPT DPO 使用 `conversations` 表示候选回复之前的对话历史，`c
 
 ### 格式三：Messages 格式（OpenAI 风格）
 
-DPO 数据也可以使用 OpenAI 风格的 `messages` 形式：`messages` 承载候选回复之前的完整对话历史，`chosen` / `rejected` 分别给出两条候选 assistant 回复。候选回复可以是纯文本，也可以包含 `tool_calls`。
+DPO 数据也可以使用 OpenAI 风格的 `messages` 形式：`messages` 承载候选回复之前的完整对话历史，`chosen` / `rejected` 分别给出两条候选回复。候选回复支持三种形式：
+
+- `string`：一条纯文本 assistant 回复。
+- `object`：一条 assistant 消息，可包含 `content` 和 `tool_calls`。
+- `list`：完整候选消息轨迹，可包含 `assistant.tool_calls`、`role: "tool"` 和最终 assistant 回复。
 
 #### 基础格式（`chosen` / `rejected` 为字符串）
 
@@ -376,7 +380,7 @@ DPO 数据也可以使用 OpenAI 风格的 `messages` 形式：`messages` 承载
 ]
 ```
 
-`chosen` / `rejected` 也可以写成 `{"role": "assistant", "content": "..."}` 对象形式；如果候选回复需要调用工具，也可以在对象中包含 `tool_calls`。
+`chosen` / `rejected` 也可以写成 `{"role": "assistant", "content": "..."}` 对象形式；如果候选回复需要调用工具，也可以在对象中包含 `tool_calls`。这种形式适合比较“是否应该调用工具”，但不包含工具返回后的最终回答。
 
 #### 工具调用示例
 
@@ -423,14 +427,75 @@ DPO 数据也可以使用 OpenAI 风格的 `messages` 形式：`messages` 承载
 ]
 ```
 
+#### 完整工具轨迹示例（`chosen` / `rejected` 为消息列表）
+
+如果要比较完整工具使用流程，推荐将 `chosen` / `rejected` 写成消息列表。训练时会监督候选轨迹中的 `assistant` 段（包括 `<tool_call>` 和最终回答），但不会监督 `role: "tool"` 的工具返回内容。
+
+```json
+[
+  {
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "get_weather",
+          "description": "查询城市天气",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "city": {"type": "string"}
+            },
+            "required": ["city"]
+          }
+        }
+      }
+    ],
+    "messages": [
+      {"role": "user", "content": "今天北京的天气怎么样？"}
+    ],
+    "chosen": [
+      {
+        "role": "assistant",
+        "content": "我来查一下北京当前天气。",
+        "tool_calls": [
+          {
+            "type": "function",
+            "function": {
+              "name": "get_weather",
+              "arguments": {"city": "北京"}
+            }
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "content": "{\"temperature\": 18, \"condition\": \"晴\"}"
+      },
+      {
+        "role": "assistant",
+        "content": "北京今天晴，18°C，适合外出。"
+      }
+    ],
+    "rejected": [
+      {
+        "role": "assistant",
+        "content": "北京今天应该挺好，适合外出。"
+      }
+    ]
+  }
+]
+```
+
 #### 字段说明
 
 | 字段 | 类型 | 必需 | 说明 |
 |------|------|------|------|
 | `messages` | list | ✅ | 候选回复之前的对话历史，可包含历史中的 `assistant.tool_calls` 和 `role: "tool"` |
-| `chosen` | string \| object | ✅ | 偏好的 assistant 回复，字符串或 `{"role": "assistant", "content": "...", "tool_calls": [...]}` 形式均可 |
-| `rejected` | string \| object | ✅ | 非偏好的最终 assistant 回复，形式同 `chosen` |
+| `chosen` | string \| object \| list | ✅ | 偏好的候选回复。list 形式表示完整候选消息轨迹 |
+| `rejected` | string \| object \| list | ✅ | 非偏好的候选回复，形式同 `chosen` |
 | `tools` | string/list | ❌ | 工具定义，通常与 `messages` 中的 `tool_calls` 配套使用 |
+
+> 💡 DPO 的 list 轨迹中，`assistant` 段会进入 labels，`tool` 段会被 mask。这样可以比较“工具调用 + 最终回答”的完整偏好，而不会让模型学习生成工具返回内容。
 
 > 💡 完整可运行示例参见 `datasets/dpo_messages_zh_demo.json`。
 

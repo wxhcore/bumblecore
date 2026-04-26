@@ -46,5 +46,99 @@
     ],
     "chosen": "未来五年最关键的是算法创新。算力增长正在受工艺与功耗墙的限制，公开数据规模也接近天花板，反而是模型结构、训练范式（如长上下文、多模态、强化学习对齐）等算法层面仍有大量未被挖掘的空间，每一次算法突破都可能直接释放已有算力和数据的潜力。",
     "rejected": "都重要。"
+  },
+  {
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "get_weather",
+          "description": "查询城市天气",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "city": {"type": "string"}
+            },
+            "required": ["city"]
+          }
+        }
+      }
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "今天北京的天气怎么样？"
+      }
+    ],
+    "chosen": {
+      "role": "assistant",
+      "content": "我来查一下北京当前天气。",
+      "tool_calls": [
+        {
+          "type": "function",
+          "function": {
+            "name": "get_weather",
+            "arguments": {"city": "北京"}
+          }
+        }
+      ]
+    },
+    "rejected": {
+      "role": "assistant",
+      "content": "北京今天应该挺好，适合外出。"
+    }
+  },
+  {
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "get_weather",
+          "description": "查询城市天气",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "city": {"type": "string"}
+            },
+            "required": ["city"]
+          }
+        }
+      }
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "今天北京的天气怎么样？"
+      }
+    ],
+    "chosen": [
+      {
+        "role": "assistant",
+        "content": "我来查一下北京当前天气。",
+        "tool_calls": [
+          {
+            "type": "function",
+            "function": {
+              "name": "get_weather",
+              "arguments": {"city": "北京"}
+            }
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "content": "{\"temperature\": 18, \"condition\": \"晴\"}"
+      },
+      {
+        "role": "assistant",
+        "content": "北京今天晴，18°C，适合外出。"
+      }
+    ],
+    "rejected": [
+      {
+        "role": "assistant",
+        "content": "北京今天应该挺好，适合外出。"
+      }
+    ]
   }
 ]

@@ -1,0 +1,142 @@
+[
+  {
+    "messages": [
+      {
+        "role": "user",
+        "content": "用一句话解释什么是大语言模型。"
+      },
+      {
+        "role": "assistant",
+        "content": "大语言模型是一种基于海量文本训练、能够理解和生成自然语言的深度神经网络模型。"
+      }
+    ]
+  },
+  {
+    "messages": [
+      {
+        "role": "system",
+        "content": "你是一个简洁的中文助手，回答尽量控制在两句话以内。"
+      },
+      {
+        "role": "user",
+        "content": "Transformer 中 self-attention 的核心作用是什么？"
+      },
+      {
+        "role": "assistant",
+        "content": "self-attention 让序列中每个位置可以直接关注序列里的任意其他位置，从而捕捉长距离依赖。它是 Transformer 摆脱 RNN 顺序限制、实现并行计算的关键。"
+      }
+    ]
+  },
+  {
+    "messages": [
+      {
+        "role": "user",
+        "content": "今天北京的天气怎么样？"
+      },
+      {
+        "role": "assistant",
+        "content": null,
+        "tool_calls": [
+          {
+            "type": "function",
+            "function": {
+              "name": "get_weather",
+              "arguments": {
+                "city": "北京",
+                "unit": "celsius"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "content": "{\"city\": \"北京\", \"temperature\": 18, \"unit\": \"celsius\", \"condition\": \"晴\"}"
+      },
+      {
+        "role": "assistant",
+        "content": "北京今天晴，气温约 18°C，适合外出。"
+      }
+    ],
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "get_weather",
+          "description": "查询指定城市的天气",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "city": {"type": "string", "description": "城市名称"},
+              "unit": {"type": "string", "enum": ["celsius", "fahrenheit"], "description": "温度单位"}
+            },
+            "required": ["city"]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "messages": [
+      {
+        "role": "system",
+        "content": "你是一个旅行规划助手。"
+      },
+      {
+        "role": "user",
+        "content": "我打算下周从上海去成都玩三天，帮我看下机票。"
+      },
+      {
+        "role": "assistant",
+        "content": "好的，我先帮您查一下下周一上海飞成都的航班。",
+        "tool_calls": [
+          {
+            "type": "function",
+            "function": {
+              "name": "search_flights",
+              "arguments": {
+                "from_city": "上海",
+                "to_city": "成都",
+                "depart_date": "2026-05-04"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "content": "[{\"flight\": \"MU5421\", \"depart\": \"08:00\", \"arrive\": \"11:00\", \"price\": 980}, {\"flight\": \"CA4516\", \"depart\": \"14:30\", \"arrive\": \"17:30\", \"price\": 1120}]"
+      },
+      {
+        "role": "assistant",
+        "content": "为您找到两班直飞航班：\n1. MU5421，08:00 起飞 11:00 抵达，¥980\n2. CA4516，14:30 起飞 17:30 抵达，¥1120\n推荐 MU5421，价格更优且抵达时间适合下午开始游览。"
+      },
+      {
+        "role": "user",
+        "content": "好的，那帮我推荐三天的行程吧。"
+      },
+      {
+        "role": "assistant",
+        "content": "三天行程建议：\nDay1 抵达后游览宽窄巷子和锦里，晚饭吃火锅；\nDay2 上午都江堰、下午青城山；\nDay3 大熊猫繁育研究基地，下午返程。"
+      }
+    ],
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "search_flights",
+          "description": "搜索两地之间的航班",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "from_city": {"type": "string"},
+              "to_city": {"type": "string"},
+              "depart_date": {"type": "string", "description": "YYYY-MM-DD"}
+            },
+            "required": ["from_city", "to_city", "depart_date"]
+          }
+        }
+      }
+    ]
+  }
+]

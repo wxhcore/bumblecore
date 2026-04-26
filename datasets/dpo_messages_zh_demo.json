@@ -1,0 +1,50 @@
+[
+  {
+    "messages": [
+      {
+        "role": "user",
+        "content": "请帮我把下面这段中文翻译成英文：人工智能正在改变我们的生活方式。"
+      }
+    ],
+    "chosen": "Artificial intelligence is changing the way we live.",
+    "rejected": "AI change life."
+  },
+  {
+    "messages": [
+      {
+        "role": "system",
+        "content": "你是一个耐心的数学老师，回答时要给出推导步骤。"
+      },
+      {
+        "role": "user",
+        "content": "一个矩形的长是 8，宽是 5，求它的面积和周长。"
+      }
+    ],
+    "chosen": {
+      "role": "assistant",
+      "content": "面积 = 长 × 宽 = 8 × 5 = 40\n周长 = 2 × (长 + 宽) = 2 × (8 + 5) = 26\n所以面积是 40，周长是 26。"
+    },
+    "rejected": {
+      "role": "assistant",
+      "content": "40 和 26。"
+    }
+  },
+  {
+    "messages": [
+      {
+        "role": "user",
+        "content": "总结一下这段话的核心观点：深度学习的发展依赖于算力、数据和算法三个要素，缺一不可。"
+      },
+      {
+        "role": "assistant",
+        "content": "核心观点是深度学习同时依赖算力、数据和算法这三大要素。"
+      },
+      {
+        "role": "user",
+        "content": "那如果只看未来五年，你认为哪个要素最关键？"
+      }
+    ],
+    "chosen": "未来五年最关键的是算法创新。算力增长正在受工艺与功耗墙的限制，公开数据规模也接近天花板，反而是模型结构、训练范式（如长上下文、多模态、强化学习对齐）等算法层面仍有大量未被挖掘的空间，每一次算法突破都可能直接释放已有算力和数据的潜力。",
+    "rejected": "都重要。"
+  }
+]

@@ -9,7 +9,7 @@ host: "0.0.0.0"
 port: 8000
 
 # 对话配置
-system_prompt: "You are a helpful assistant."
+system_prompt: "You are Bumblebee, a helpful AI assistant."
 max_new_tokens: 1024
 enable_history: false
 

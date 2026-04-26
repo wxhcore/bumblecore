@@ -5,7 +5,7 @@ dtype: "auto"
 training_stage: "sft"
 
 # 对话配置
-system_prompt: "You are a helpful assistant."
+system_prompt: "You are Bumblebee, a helpful AI assistant."
 max_new_tokens: 1024                                 
 enable_history: false  
 

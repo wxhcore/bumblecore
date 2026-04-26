@@ -172,6 +172,162 @@ def test_sft_dataset_with_tools():
     assert torch.equal(result["input_ids"][non_negative_100], result["labels"][non_negative_100])
 
 
+def test_sft_dataset_with_tool_calls():
+    """SFT 工具调用：assistant.tool_calls + role:tool 应通过 chat template，且仅 assistant 段被监督"""
+    train_dataset = [
+        {
+            "messages": [
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": "What's the weather in Beijing?"},
+                {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "type": "function",
+                            "function": {
+                                "name": "get_weather",
+                                "arguments": {"city": "Beijing"},
+                            },
+                        }
+                    ],
+                },
+                {"role": "tool", "content": '{"temperature": 18, "condition": "sunny"}'},
+                {"role": "assistant", "content": "It's sunny in Beijing, around 18°C."},
+            ],
+            "tools": [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "get_weather",
+                        "description": "Get city weather",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {"city": {"type": "string"}},
+                            "required": ["city"],
+                        },
+                    },
+                }
+            ],
+        }
+    ]
+
+    dataset = SFTDataset(train_dataset, tokenizer, max_length=512)
+    result = dataset[0]
+
+    assert len(result["input_ids"]) == len(result["labels"]) == len(result["attention_mask"])
+    assert (result["attention_mask"] == 1).all()
+
+    decoded_full = tokenizer.decode(result["input_ids"])
+    assert "<tool_call>" in decoded_full and "</tool_call>" in decoded_full
+    assert "<tool_response>" in decoded_full and "</tool_response>" in decoded_full
+    assert "get_weather" in decoded_full
+
+    supervised_idx = (result["labels"] != -100).nonzero(as_tuple=True)[0]
+    assert len(supervised_idx) > 0, "labels 全 -100，assistant 段未被监督"
+
+    supervised_text = tokenizer.decode(result["labels"][supervised_idx])
+    assert "get_weather" in supervised_text, "assistant tool_call 段应进入 labels"
+    assert "Beijing" in supervised_text, "assistant 最终回答应进入 labels"
+
+    assert "What's the weather in Beijing?" not in supervised_text
+    assert "<tool_response>" not in supervised_text
+
+
+def test_sft_dataset_assistant_text_with_tool_calls():
+    """assistant content + tool_calls 共存：两部分都应被监督"""
+    train_dataset = [
+        {
+            "messages": [
+                {"role": "user", "content": "今天北京天气怎么样？"},
+                {
+                    "role": "assistant",
+                    "content": "好的，我帮您查一下北京当前天气。",
+                    "tool_calls": [
+                        {
+                            "type": "function",
+                            "function": {
+                                "name": "get_weather",
+                                "arguments": {"city": "北京"},
+                            },
+                        }
+                    ],
+                },
+                {"role": "tool", "content": '{"temperature": 18}'},
+                {"role": "assistant", "content": "北京目前 18°C。"},
+            ],
+            "tools": [{"type": "function", "function": {"name": "get_weather"}}],
+        }
+    ]
+
+    dataset = SFTDataset(train_dataset, tokenizer, max_length=512)
+    result = dataset[0]
+
+    decoded_full = tokenizer.decode(result["input_ids"])
+    assert "好的，我帮您查一下北京当前天气。" in decoded_full
+    assert "<tool_call>" in decoded_full
+
+    supervised_idx = (result["labels"] != -100).nonzero(as_tuple=True)[0]
+    supervised_text = tokenizer.decode(result["labels"][supervised_idx])
+
+    assert "好的，我帮您查一下北京当前天气。" in supervised_text, \
+        "assistant 文字 content 应进入 labels"
+    assert "get_weather" in supervised_text, \
+        "assistant tool_call 应进入 labels"
+    assert "北京目前 18°C" in supervised_text, \
+        "最终 assistant 回答应进入 labels"
+
+    assert "今天北京天气怎么样？" not in supervised_text
+
+
+def test_sft_dataset_multiple_tool_calls():
+    """多轮工具调用：每个 assistant 段都应进入 labels，每个 tool 响应都应被 mask"""
+    train_dataset = [
+        {
+            "messages": [
+                {"role": "user", "content": "查一下北京和上海的天气。"},
+                {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "type": "function",
+                            "function": {"name": "get_weather", "arguments": {"city": "北京"}},
+                        }
+                    ],
+                },
+                {"role": "tool", "content": '{"temperature": 18}'},
+                {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "type": "function",
+                            "function": {"name": "get_weather", "arguments": {"city": "上海"}},
+                        }
+                    ],
+                },
+                {"role": "tool", "content": '{"temperature": 22}'},
+                {"role": "assistant", "content": "北京 18°C，上海 22°C。"},
+            ],
+            "tools": [{"type": "function", "function": {"name": "get_weather"}}],
+        }
+    ]
+
+    dataset = SFTDataset(train_dataset, tokenizer, max_length=512)
+    result = dataset[0]
+
+    supervised_idx = (result["labels"] != -100).nonzero(as_tuple=True)[0]
+    supervised_text = tokenizer.decode(result["labels"][supervised_idx])
+
+    assert supervised_text.count("get_weather") == 2, \
+        f"两个 tool_call 都应进入 labels，实际: {supervised_text!r}"
+    assert "北京 18°C，上海 22°C。" in supervised_text
+    assert "<tool_response>" not in supervised_text
+    assert '"temperature": 18' not in supervised_text
+    assert '"temperature": 22' not in supervised_text
+
+
 def test_sft_dataset_max_length_truncation():
     """测试 SFTDataset 的 max_length 截断逻辑"""
     train_dataset = [
@@ -274,6 +430,36 @@ def test_dpo_dataset():
     assert not torch.equal(result["chosen_input_ids"], result["rejected_input_ids"])
 
 
+def test_dpo_dataset_from_messages_format():
+    """DPODataset 端到端：使用 DataFormatter 从 messages 格式产出的结构"""
+    from bumblecore.data_processing import DataFormatter
+
+    raw = [
+        {
+            "messages": [
+                {"role": "system", "content": "You are helpful."},
+                {"role": "user", "content": "Translate to English: 你好。"},
+            ],
+            "chosen": "Hello.",
+            "rejected": "Hi.",
+        }
+    ]
+    formatted = DataFormatter("dpo")(raw)
+
+    dataset = DPODataset(formatted, tokenizer, max_length=256)
+    result = dataset[0]
+
+    chosen_supervised = (result["chosen_labels"] != -100).nonzero(as_tuple=True)[0]
+    rejected_supervised = (result["rejected_labels"] != -100).nonzero(as_tuple=True)[0]
+    assert len(chosen_supervised) > 0 and len(rejected_supervised) > 0
+
+    chosen_text = tokenizer.decode(result["chosen_labels"][chosen_supervised])
+    rejected_text = tokenizer.decode(result["rejected_labels"][rejected_supervised])
+    assert "Hello." in chosen_text
+    assert "Hi." in rejected_text
+
+    assert "Translate to English" not in chosen_text
+    assert "Translate to English" not in rejected_text
 
 
 
@@ -433,3 +619,161 @@ def test_dpo_collator():
     assert torch.equal(result["rejected_input_ids"], expected["rejected_input_ids"])
     assert torch.equal(result["rejected_attention_mask"], expected["rejected_attention_mask"])
     assert torch.equal(result["rejected_labels"], expected["rejected_labels"])
+
+
+# ==============================
+# 端到端契约测试: DataFormatter -> Dataset
+# 验证 formatter 输出格式恰好是 Dataset 期望的输入
+# ==============================
+
+def _supervised_text(result, key="labels"):
+    """从 dataset 输出里取出被监督部分（labels != -100）的文本"""
+    idx = (result[key] != -100).nonzero(as_tuple=True)[0]
+    return tokenizer.decode(result[key][idx])
+
+
+def test_chain_sft_alpaca_formatter_to_dataset():
+    """SFT Alpaca: raw -> DataFormatter -> SFTDataset 端到端"""
+    from bumblecore.data_processing import DataFormatter
+
+    raw = [
+        {
+            "instruction": "Translate to French",
+            "input": "Hello",
+            "output": "Bonjour",
+        }
+    ]
+    formatted = DataFormatter("sft")(raw)
+    assert "messages" in formatted[0] and "tools" in formatted[0]
+
+    dataset = SFTDataset(formatted, tokenizer, max_length=256)
+    result = dataset[0]
+
+    supervised = _supervised_text(result)
+    assert "Bonjour" in supervised
+    assert "Translate to French" not in supervised
+    assert "Hello" not in supervised
+
+
+def test_chain_sft_sharegpt_formatter_to_dataset():
+    """SFT ShareGPT: raw -> DataFormatter -> SFTDataset 端到端"""
+    from bumblecore.data_processing import DataFormatter
+
+    raw = [
+        {
+            "conversations": [
+                {"from": "system", "value": "You are helpful."},
+                {"from": "human", "value": "What is 2+2?"},
+                {"from": "gpt", "value": "4"},
+                {"from": "human", "value": "And 3+3?"},
+                {"from": "gpt", "value": "6"},
+            ]
+        }
+    ]
+    formatted = DataFormatter("sft")(raw)
+    assert formatted[0]["messages"][0] == {"role": "system", "content": "You are helpful."}
+
+    dataset = SFTDataset(formatted, tokenizer, max_length=256)
+    result = dataset[0]
+
+    supervised = _supervised_text(result)
+    assert "4" in supervised and "6" in supervised
+    assert "What is 2+2?" not in supervised
+    assert "And 3+3?" not in supervised
+
+
+def test_chain_sft_sharegpt_toolcall_formatter_to_dataset():
+    """关键链路: ShareGPT 的 function_call/observation 经 formatter 转成
+    assistant.tool_calls + role:tool 后, SFTDataset 应正确处理掩码"""
+    from bumblecore.data_processing import DataFormatter
+
+    raw = [
+        {
+            "conversations": [
+                {"from": "human", "value": "查一下北京天气。"},
+                {
+                    "from": "function_call",
+                    "value": '{"name": "get_weather", "arguments": {"city": "北京"}}',
+                },
+                {"from": "observation", "value": '{"temperature": 18, "condition": "sunny"}'},
+                {"from": "gpt", "value": "北京 18°C，天气晴。"},
+            ],
+            "tools": '[{"type": "function", "function": {"name": "get_weather"}}]',
+        }
+    ]
+    formatted = DataFormatter("sft")(raw)
+    msgs = formatted[0]["messages"]
+    assert any(m.get("role") == "assistant" and m.get("tool_calls") for m in msgs)
+    assert any(m.get("role") == "tool" for m in msgs)
+    assert isinstance(formatted[0]["tools"], list)
+
+    dataset = SFTDataset(formatted, tokenizer, max_length=512)
+    result = dataset[0]
+
+    decoded_full = tokenizer.decode(result["input_ids"])
+    assert "<tool_call>" in decoded_full and "<tool_response>" in decoded_full
+    assert "get_weather" in decoded_full
+
+    supervised = _supervised_text(result)
+    assert "get_weather" in supervised, "tool_call 应进入 labels"
+    assert "北京 18°C，天气晴。" in supervised, "最终回答应进入 labels"
+    assert "查一下北京天气。" not in supervised
+    assert "<tool_response>" not in supervised
+    assert '"temperature": 18' not in supervised
+
+
+def test_chain_dpo_alpaca_formatter_to_dataset():
+    """DPO Alpaca: raw -> DataFormatter -> DPODataset 端到端"""
+    from bumblecore.data_processing import DataFormatter
+
+    raw = [
+        {
+            "instruction": "Write a poem about spring",
+            "input": "",
+            "chosen": "Spring blooms in vibrant hues.",
+            "rejected": "Flowers.",
+        }
+    ]
+    formatted = DataFormatter("dpo")(raw)
+    assert "chosen_messages" in formatted[0] and "rejected_messages" in formatted[0]
+    assert "messages" in formatted[0]["chosen_messages"]
+    assert "tools" in formatted[0]["chosen_messages"]
+
+    dataset = DPODataset(formatted, tokenizer, max_length=256)
+    result = dataset[0]
+
+    chosen = _supervised_text(result, "chosen_labels")
+    rejected = _supervised_text(result, "rejected_labels")
+    assert "Spring blooms in vibrant hues." in chosen
+    assert "Flowers." in rejected
+    assert "Write a poem about spring" not in chosen
+    assert "Write a poem about spring" not in rejected
+
+
+def test_chain_dpo_sharegpt_formatter_to_dataset():
+    """DPO ShareGPT: raw -> DataFormatter -> DPODataset 端到端"""
+    from bumblecore.data_processing import DataFormatter
+
+    raw = [
+        {
+            "conversations": [
+                {"from": "system", "value": "You are helpful."},
+                {"from": "human", "value": "Greet me."},
+            ],
+            "chosen": {"from": "gpt", "value": "Hello there, friend!"},
+            "rejected": {"from": "gpt", "value": "hi"},
+        }
+    ]
+    formatted = DataFormatter("dpo")(raw)
+    assert formatted[0]["chosen_messages"]["messages"][-1]["content"] == "Hello there, friend!"
+    assert formatted[0]["rejected_messages"]["messages"][-1]["content"] == "hi"
+
+    dataset = DPODataset(formatted, tokenizer, max_length=256)
+    result = dataset[0]
+
+    chosen = _supervised_text(result, "chosen_labels")
+    rejected = _supervised_text(result, "rejected_labels")
+    assert "Hello there, friend!" in chosen
+    assert "hi" in rejected
+    assert "Greet me." not in chosen
+    assert "Greet me." not in rejected

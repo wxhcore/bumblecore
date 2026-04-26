@@ -3,6 +3,9 @@ import pytest
 from bumblecore.data_processing import DataFormatter
 
 
+DEFAULT_SYSTEM = "You are Bumblebee, a helpful AI assistant."
+
+
 PRETRAIN_DATA = [
     {"text": "This is pretrain sample 1."},
     {"text": "This is pretrain sample 2."},
@@ -39,7 +42,7 @@ def test_sft_alpaca():
     expected = [
         {
             "messages": [
-                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "system", "content": DEFAULT_SYSTEM},
                 {"role": "user", "content": "Translate English to French\nHello"},
                 {"role": "assistant", "content": "Bonjour"},
             ],
@@ -62,7 +65,7 @@ def test_sft_alpaca_no_input():
     expected = [
         {
             "messages": [
-                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "system", "content": DEFAULT_SYSTEM},
                 {"role": "user", "content": "Say hello"},
                 {"role": "assistant", "content": "Hi"},
             ],
@@ -168,7 +171,7 @@ def test_sft_sharegpt_no_system():
     expected = [
         {
             "messages": [
-                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "system", "content": DEFAULT_SYSTEM},
                 {"role": "user", "content": "My app crashes"},
                 {"role": "assistant", "content": "Sorry to hear that."},
             ],
@@ -246,7 +249,7 @@ def test_dpo_alpaca():
         {
             "chosen_messages": {
                 "messages": [
-                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "system", "content": DEFAULT_SYSTEM},
                     {"role": "user", "content": "Write a poem"},
                     {"role": "assistant", "content": "Roses are red..."},
                 ],
@@ -254,7 +257,7 @@ def test_dpo_alpaca():
             },
             "rejected_messages": {
                 "messages": [
-                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "system", "content": DEFAULT_SYSTEM},
                     {"role": "user", "content": "Write a poem"},
                     {"role": "assistant", "content": "I don't know."},
                 ],
@@ -351,7 +354,7 @@ def test_dpo_sharegpt():
         {
             "chosen_messages": {
                 "messages": [
-                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "system", "content": DEFAULT_SYSTEM},
                     {"role": "user", "content": "Hi"},
                     {"role": "assistant", "content": "Hello!"},
                     {"role": "user", "content": "How are you?"},
@@ -361,7 +364,7 @@ def test_dpo_sharegpt():
             },
             "rejected_messages": {
                 "messages": [
-                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "system", "content": DEFAULT_SYSTEM},
                     {"role": "user", "content": "Hi"},
                     {"role": "assistant", "content": "Hello!"},
                     {"role": "user", "content": "How are you?"},
@@ -409,6 +412,296 @@ def test_dpo_sharegpt_with_system_and_tools():
         }
     ]
     assert result == expected
+
+
+# ==============================
+# SFT - ShareGPT 工具调用 / 脏样本测试
+# ==============================
+
+def test_sft_sharegpt_toolcall_roundtrip():
+    """function_call -> assistant.tool_calls; observation -> role=tool"""
+    formatter = DataFormatter("sft")
+    data = [
+        {
+            "conversations": [
+                {"from": "human", "value": "给John开张发票"},
+                {
+                    "from": "function_call",
+                    "value": '{"name": "gen_invoice", "arguments": {"name": "John"}}',
+                },
+                {
+                    "from": "observation",
+                    "value": '{"invoice_id": "INV1"}',
+                },
+                {"from": "gpt", "value": "已生成 INV1"},
+            ],
+            "tools": '[{"name": "gen_invoice"}]',
+        }
+    ]
+    msgs = formatter(data)[0]["messages"]
+    assert msgs[0] == {"role": "system", "content": DEFAULT_SYSTEM}
+    assert msgs[1] == {"role": "user", "content": "给John开张发票"}
+    assert msgs[2] == {
+        "role": "assistant",
+        "content": None,
+        "tool_calls": [
+            {
+                "type": "function",
+                "function": {"name": "gen_invoice", "arguments": {"name": "John"}},
+            }
+        ],
+    }
+    assert msgs[3] == {"role": "tool", "content": '{"invoice_id": "INV1"}'}
+    assert msgs[4] == {"role": "assistant", "content": "已生成 INV1"}
+
+
+def test_sft_sharegpt_toolcall_arguments_string():
+    """function_call.arguments 即使被序列化成字符串也要还原成 dict"""
+    formatter = DataFormatter("sft")
+    data = [
+        {
+            "conversations": [
+                {"from": "human", "value": "x"},
+                {
+                    "from": "function_call",
+                    "value": '{"name": "f", "arguments": "{\\"k\\": 1}"}',
+                },
+                {"from": "observation", "value": "ok"},
+                {"from": "gpt", "value": "done"},
+            ],
+        }
+    ]
+    msgs = formatter(data)[0]["messages"]
+    assert msgs[2]["tool_calls"][0]["function"]["arguments"] == {"k": 1}
+
+
+def test_sft_sharegpt_orphan_observation_skipped():
+    """孤儿 observation -> warn + skip 整条"""
+    formatter = DataFormatter("sft")
+    data = [
+        {
+            "conversations": [
+                {"from": "human", "value": "a"},
+                {"from": "observation", "value": "stray"},
+                {"from": "gpt", "value": "b"},
+            ]
+        },
+        {
+            "conversations": [
+                {"from": "human", "value": "ok"},
+                {"from": "gpt", "value": "fine"},
+            ]
+        },
+    ]
+    with pytest.warns(UserWarning, match="observation"):
+        result = formatter(data)
+    assert len(result) == 1
+    assert result[0]["messages"][1]["content"] == "ok"
+
+
+def test_sft_sharegpt_unknown_role_skipped():
+    """未知 from 角色 -> warn + skip 整条"""
+    formatter = DataFormatter("sft")
+    data = [
+        {
+            "conversations": [
+                {"from": "human", "value": "a"},
+                {"from": "alien", "value": "??"},
+                {"from": "gpt", "value": "b"},
+            ]
+        },
+        {
+            "conversations": [
+                {"from": "human", "value": "ok"},
+                {"from": "gpt", "value": "fine"},
+            ]
+        },
+    ]
+    with pytest.warns(UserWarning, match="Unsupported conversation role"):
+        result = formatter(data)
+    assert len(result) == 1
+
+
+def test_ensure_system_message_does_not_mutate():
+    """重复跑同一份数据集不应该污染原始 conversations"""
+    formatter = DataFormatter("sft")
+    original = [
+        {
+            "conversations": [
+                {"from": "human", "value": "a"},
+                {"from": "gpt", "value": "b"},
+            ]
+        }
+    ]
+    snapshot = [t.copy() for t in original[0]["conversations"]]
+    formatter(original)
+    formatter(original)
+    assert original[0]["conversations"] == snapshot
+
+
+# ==============================
+# SFT / DPO - Messages (OpenAI) 格式测试
+# ==============================
+
+def test_sft_messages_passthrough_with_default_system():
+    formatter = DataFormatter("sft")
+    data = [
+        {
+            "messages": [
+                {"role": "user", "content": "Hi"},
+                {"role": "assistant", "content": "Hello!"},
+            ]
+        }
+    ]
+    result = formatter(data)
+    assert result[0]["messages"] == [
+        {"role": "system", "content": DEFAULT_SYSTEM},
+        {"role": "user", "content": "Hi"},
+        {"role": "assistant", "content": "Hello!"},
+    ]
+    assert result[0]["tools"] is None
+
+
+def test_sft_messages_with_tool_calls():
+    """messages 输入直接带 tool_calls 应原样透出"""
+    formatter = DataFormatter("sft")
+    data = [
+        {
+            "messages": [
+                {"role": "system", "content": "Custom"},
+                {"role": "user", "content": "invoice for John"},
+                {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "type": "function",
+                            "function": {
+                                "name": "gen_invoice",
+                                "arguments": {"name": "John"},
+                            },
+                        }
+                    ],
+                },
+                {"role": "tool", "content": '{"id": 1}'},
+                {"role": "assistant", "content": "done"},
+            ],
+            "tools": [{"name": "gen_invoice"}],
+        }
+    ]
+    result = formatter(data)
+    assert result[0]["messages"][0] == {"role": "system", "content": "Custom"}
+    assert result[0]["messages"][2]["tool_calls"][0]["function"]["name"] == "gen_invoice"
+    assert result[0]["messages"][3] == {"role": "tool", "content": '{"id": 1}'}
+    assert result[0]["tools"] == [{"name": "gen_invoice"}]
+
+
+def test_sft_messages_assistant_text_with_tool_calls():
+    """assistant 同时带文字 content 和 tool_calls 应原样保留（OpenAI / Qwen 标准）"""
+    formatter = DataFormatter("sft")
+    data = [
+        {
+            "messages": [
+                {"role": "user", "content": "今天北京天气怎么样？"},
+                {
+                    "role": "assistant",
+                    "content": "好的，我帮您查一下北京当前天气。",
+                    "tool_calls": [
+                        {
+                            "type": "function",
+                            "function": {
+                                "name": "get_weather",
+                                "arguments": {"city": "北京"},
+                            },
+                        }
+                    ],
+                },
+                {"role": "tool", "content": '{"temperature": 18}'},
+                {"role": "assistant", "content": "北京目前 18°C。"},
+            ]
+        }
+    ]
+    result = formatter(data)
+    asst = result[0]["messages"][2]
+    assert asst["role"] == "assistant"
+    assert asst["content"] == "好的，我帮您查一下北京当前天气。"
+    assert asst["tool_calls"][0]["function"]["name"] == "get_weather"
+
+
+def test_sft_messages_invalid_role_skipped():
+    formatter = DataFormatter("sft")
+    data = [
+        {
+            "messages": [
+                {"role": "user", "content": "x"},
+                {"role": "alien", "content": "y"},
+            ]
+        },
+        {
+            "messages": [
+                {"role": "user", "content": "ok"},
+                {"role": "assistant", "content": "fine"},
+            ]
+        },
+    ]
+    with pytest.warns(UserWarning, match="Unsupported message role"):
+        result = formatter(data)
+    assert len(result) == 1
+
+
+def test_dpo_messages_basic():
+    formatter = DataFormatter("dpo")
+    data = [
+        {
+            "messages": [
+                {"role": "user", "content": "Write a poem"},
+            ],
+            "chosen": "Roses are red...",
+            "rejected": "I don't know.",
+        }
+    ]
+    result = formatter(data)
+    assert result == [
+        {
+            "chosen_messages": {
+                "messages": [
+                    {"role": "system", "content": DEFAULT_SYSTEM},
+                    {"role": "user", "content": "Write a poem"},
+                    {"role": "assistant", "content": "Roses are red..."},
+                ],
+                "tools": None,
+            },
+            "rejected_messages": {
+                "messages": [
+                    {"role": "system", "content": DEFAULT_SYSTEM},
+                    {"role": "user", "content": "Write a poem"},
+                    {"role": "assistant", "content": "I don't know."},
+                ],
+                "tools": None,
+            },
+        }
+    ]
+
+
+def test_dpo_messages_chosen_dict_form():
+    """DPO messages 也接受 {role, content} 形式的 chosen/rejected"""
+    formatter = DataFormatter("dpo")
+    data = [
+        {
+            "messages": [
+                {"role": "system", "content": "be concise"},
+                {"role": "user", "content": "hi"},
+            ],
+            "chosen": {"role": "assistant", "content": "hi back"},
+            "rejected": {"role": "assistant", "content": "..."},
+        }
+    ]
+    result = formatter(data)
+    chosen = result[0]["chosen_messages"]["messages"]
+    rejected = result[0]["rejected_messages"]["messages"]
+    assert chosen[0] == {"role": "system", "content": "be concise"}
+    assert chosen[-1] == {"role": "assistant", "content": "hi back"}
+    assert rejected[-1] == {"role": "assistant", "content": "..."}
 
 
 # ==============================

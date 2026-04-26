@@ -6,6 +6,7 @@ import torch.nn.functional as F
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig, TextIteratorStreamer,AsyncTextIteratorStreamer
 
 from ..bumblebee import BumblebeeConfig, BumblebeeForCausalLM
+from ..data_processing.data_formatter import DEFAULT_SYSTEM
 AutoModelForCausalLM.register(BumblebeeConfig, BumblebeeForCausalLM)
 AutoConfig.register("bumblebee", BumblebeeConfig)
 
@@ -235,7 +236,7 @@ class BumblebeeChat:
         repetition_penalty: Optional[float],
         do_sample: Optional[bool],
     ):
-        system_prompt = system_prompt if system_prompt is not None else "You are a helpful assistant."
+        system_prompt = system_prompt if system_prompt is not None else DEFAULT_SYSTEM
         max_new_tokens = max_new_tokens if max_new_tokens is not None else 1024
         temperature = temperature if temperature is not None else self.generation_config.temperature
         top_k = top_k if top_k is not None else self.generation_config.top_k
@@ -398,7 +399,7 @@ class HFStreamChat:
 
     def _build_prompt(self, messages: list[dict], system_prompt: str | None) -> str:
         if messages and messages[0]["role"] != "system":
-            messages = [{"role": "system", "content": system_prompt or "You are a helpful assistant."}] + messages
+            messages = [{"role": "system", "content": system_prompt or DEFAULT_SYSTEM}] + messages
         return self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
 
     def stream_chat(

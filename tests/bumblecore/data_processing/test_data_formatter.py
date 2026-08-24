@@ -743,7 +743,7 @@ def test_dpo_messages_chosen_with_tool_calls():
 
 
 def test_dpo_messages_chosen_list_tool_trajectory():
-    """DPO messages 支持 chosen/rejected 为完整消息轨迹"""
+    """DPO messages 支持 chosen/rejected 调用不同工具的完整消息轨迹"""
     formatter = DataFormatter("dpo")
     data = [
         {
@@ -768,9 +768,26 @@ def test_dpo_messages_chosen_list_tool_trajectory():
                 {"role": "assistant", "content": "北京今天晴，18°C，适合外出。"},
             ],
             "rejected": [
-                {"role": "assistant", "content": "北京今天应该挺好。"},
+                {
+                    "role": "assistant",
+                    "content": "我来查询一下相关信息。",
+                    "tool_calls": [
+                        {
+                            "type": "function",
+                            "function": {
+                                "name": "get_air_quality",
+                                "arguments": {"city": "北京"},
+                            },
+                        }
+                    ],
+                },
+                {"role": "tool", "content": '{"aqi": 42, "level": "优"}'},
+                {"role": "assistant", "content": "北京今天空气质量优。"},
             ],
-            "tools": [{"type": "function", "function": {"name": "get_weather"}}],
+            "tools": [
+                {"type": "function", "function": {"name": "get_weather"}},
+                {"type": "function", "function": {"name": "get_air_quality"}},
+            ],
         }
     ]
 
@@ -788,9 +805,14 @@ def test_dpo_messages_chosen_list_tool_trajectory():
         "role": "assistant",
         "content": "北京今天晴，18°C，适合外出。",
     }
+    assert rejected["messages"][2]["tool_calls"][0]["function"]["name"] == "get_air_quality"
+    assert rejected["messages"][3] == {
+        "role": "tool",
+        "content": '{"aqi": 42, "level": "优"}',
+    }
     assert rejected["messages"][-1] == {
         "role": "assistant",
-        "content": "北京今天应该挺好。",
+        "content": "北京今天空气质量优。",
     }
 
 

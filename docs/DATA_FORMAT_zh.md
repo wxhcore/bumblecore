@@ -427,9 +427,9 @@ DPO 数据也可以使用 OpenAI 风格的 `messages` 形式：`messages` 承载
 ]
 ```
 
-#### 完整工具轨迹示例（`chosen` / `rejected` 为消息列表）
+#### 多轮候选轨迹示例（`chosen` / `rejected` 为消息列表）
 
-如果要比较完整工具使用流程，推荐将 `chosen` / `rejected` 写成消息列表。训练时会监督候选轨迹中的 `assistant` 段（包括 `<tool_call>` 和最终回答），但不会监督 `role: "tool"` 的工具返回内容。
+如果偏好标签评价的是完整执行结果，可以将 `chosen` / `rejected` 写成消息列表。下面的样例比较“选择正确工具并完成回答”和“选择错误工具后答非所问”两条轨迹。训练时会监督候选轨迹中的所有 `assistant` 段（包括 `<tool_call>` 和最终回答）；`user`、`tool` 等外部消息不参与损失，但会作为后续 `assistant` 消息的上下文。
 
 ```json
 [
@@ -440,6 +440,20 @@ DPO 数据也可以使用 OpenAI 风格的 `messages` 形式：`messages` 承载
         "function": {
           "name": "get_weather",
           "description": "查询城市天气",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "city": {"type": "string"}
+            },
+            "required": ["city"]
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "get_air_quality",
+          "description": "查询城市空气质量",
           "parameters": {
             "type": "object",
             "properties": {
@@ -479,7 +493,24 @@ DPO 数据也可以使用 OpenAI 风格的 `messages` 形式：`messages` 承载
     "rejected": [
       {
         "role": "assistant",
-        "content": "北京今天应该挺好，适合外出。"
+        "content": "我来查询一下相关信息。",
+        "tool_calls": [
+          {
+            "type": "function",
+            "function": {
+              "name": "get_air_quality",
+              "arguments": {"city": "北京"}
+            }
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "content": "{\"aqi\": 42, \"level\": \"优\"}"
+      },
+      {
+        "role": "assistant",
+        "content": "北京今天空气质量优，适合外出。"
       }
     ]
   }
@@ -491,11 +522,13 @@ DPO 数据也可以使用 OpenAI 风格的 `messages` 形式：`messages` 承载
 | 字段 | 类型 | 必需 | 说明 |
 |------|------|------|------|
 | `messages` | list | ✅ | 候选回复之前的对话历史，可包含历史中的 `assistant.tool_calls` 和 `role: "tool"` |
-| `chosen` | string \| object \| list | ✅ | 偏好的候选回复。list 形式表示完整候选消息轨迹 |
-| `rejected` | string \| object \| list | ✅ | 非偏好的候选回复，形式同 `chosen` |
+| `chosen` | string \| object \| list | ✅ | 偏好的候选回复。list 形式表示完整候选消息轨迹，可包含多轮 `assistant` / `user` 对话或工具交互 |
+| `rejected` | string \| object \| list | ✅ | 非偏好的候选回复，形式同 `chosen`；与 `chosen` 的消息数量和轮数不要求一致 |
 | `tools` | string/list | ❌ | 工具定义，通常与 `messages` 中的 `tool_calls` 配套使用 |
 
-> 💡 DPO 的 list 轨迹中，`assistant` 段会进入 labels，`tool` 段会被 mask。这样可以比较“工具调用 + 最终回答”的完整偏好，而不会让模型学习生成工具返回内容。
+> 💡 DPO 的 list 轨迹中，所有 `assistant` 段会进入 labels；`user`、`tool` 等非 assistant 段会被 mask，但仍作为后续回复的上下文。因此 list 形式既支持普通多轮对话，也支持工具调用轨迹。
+
+> 💡 `chosen` / `rejected` 的消息数量、对话轮数和工具调用次数不要求一致，但双方都应表示从同一公共上下文出发、语义完整且可以比较的候选轨迹。每对轨迹最终产生一个整体偏好损失；如果只希望训练“是否调用工具”这一决策，优先使用上一节的单条 assistant `tool_calls` 形式。
 
 > 💡 完整可运行示例参见 `datasets/dpo_messages_zh_demo.json`。
 
@@ -507,4 +540,3 @@ DPO 数据也可以使用 OpenAI 风格的 `messages` 形式：`messages` 承载
 4. **DPO 对比有效**：`chosen` 和 `rejected` 应在质量、风格或正确性上有明显差异。
 5. **覆盖多样性**：包含不同任务、领域和边界场景的样本，提升泛化能力。
 6. **工具调用数据**：建议直接使用 Messages 格式编写，结构与 chat template 完全对齐，最不容易出错。
-

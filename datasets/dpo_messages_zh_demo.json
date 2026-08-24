@@ -103,6 +103,20 @@
             "required": ["city"]
           }
         }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "get_air_quality",
+          "description": "查询城市空气质量",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "city": {"type": "string"}
+            },
+            "required": ["city"]
+          }
+        }
       }
     ],
     "messages": [
@@ -137,7 +151,24 @@
     "rejected": [
       {
         "role": "assistant",
-        "content": "北京今天应该挺好，适合外出。"
+        "content": "我来查询一下相关信息。",
+        "tool_calls": [
+          {
+            "type": "function",
+            "function": {
+              "name": "get_air_quality",
+              "arguments": {"city": "北京"}
+            }
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "content": "{\"aqi\": 42, \"level\": \"优\"}"
+      },
+      {
+        "role": "assistant",
+        "content": "北京今天空气质量优，适合外出。"
       }
     ]
   }

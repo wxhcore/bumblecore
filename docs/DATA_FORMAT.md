@@ -427,9 +427,9 @@ You can also feed DPO data in the OpenAI-style `messages` form. The `messages` a
 ]
 ```
 
-#### Full Tool Trajectory Example (`chosen` / `rejected` as message lists)
+#### Multi-turn Candidate Trajectory Example (`chosen` / `rejected` as message lists)
 
-Use the list form when you want DPO to compare the full tool-use trajectory. During training, assistant turns in the candidate trajectory are supervised (including `<tool_call>` and the final response), while `role: "tool"` messages are masked out.
+When a preference label evaluates the complete execution result, use message lists for `chosen` / `rejected`. The example below compares a trajectory that selects the correct tool and completes the task with one that selects the wrong tool and answers an unrelated question. All `assistant` turns in a candidate trajectory are supervised (including `<tool_call>` and the final response). External `user` and `tool` messages are excluded from the loss but remain in context for subsequent assistant turns.
 
 ```json
 [
@@ -440,6 +440,20 @@ Use the list form when you want DPO to compare the full tool-use trajectory. Dur
         "function": {
           "name": "get_weather",
           "description": "Look up weather for a city",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "city": {"type": "string"}
+            },
+            "required": ["city"]
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "get_air_quality",
+          "description": "Look up air quality for a city",
           "parameters": {
             "type": "object",
             "properties": {
@@ -479,7 +493,24 @@ Use the list form when you want DPO to compare the full tool-use trajectory. Dur
     "rejected": [
       {
         "role": "assistant",
-        "content": "The weather in Beijing should be nice today."
+        "content": "Let me look up some related information.",
+        "tool_calls": [
+          {
+            "type": "function",
+            "function": {
+              "name": "get_air_quality",
+              "arguments": {"city": "Beijing"}
+            }
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "content": "{\"aqi\": 42, \"level\": \"good\"}"
+      },
+      {
+        "role": "assistant",
+        "content": "The air quality in Beijing is good today, so it should be comfortable to go outside."
       }
     ]
   }
@@ -491,11 +522,13 @@ Use the list form when you want DPO to compare the full tool-use trajectory. Dur
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `messages` | list | ✅ | Conversation history before the candidate response. May include historical `assistant.tool_calls` and `role: "tool"`. |
-| `chosen` | string \| object \| list | ✅ | Preferred candidate response. The list form represents a full candidate message trajectory. |
-| `rejected` | string \| object \| list | ✅ | Non-preferred candidate response, same forms as `chosen` |
+| `chosen` | string \| object \| list | ✅ | Preferred candidate response. A list is a complete candidate trajectory and may contain multi-turn `assistant` / `user` dialogue or tool interactions. |
+| `rejected` | string \| object \| list | ✅ | Non-preferred candidate response, with the same forms as `chosen`; its message and turn counts need not match `chosen`. |
 | `tools` | string/list | ❌ | Tool definitions, usually used with `tool_calls` in `messages` |
 
-> 💡 In DPO list trajectories, assistant turns are included in labels and tool turns are masked. This lets DPO compare the full "tool call + final answer" trajectory without teaching the model to generate tool return values.
+> 💡 In DPO list trajectories, all assistant turns are included in labels. Non-assistant turns such as `user` and `tool` are masked but remain in context for subsequent responses. The list form therefore supports both ordinary multi-turn dialogue and tool-use trajectories.
+
+> 💡 `chosen` and `rejected` need not contain the same number of messages, dialogue turns, or tool calls, but both must be complete, comparable candidate trajectories originating from the same shared context. Each pair produces one trajectory-level preference loss. To train only the call-vs-no-call decision, prefer the single-assistant `tool_calls` form in the preceding example.
 
 > 💡 See `datasets/dpo_messages_zh_demo.json` for runnable end-to-end examples.
 
@@ -507,4 +540,3 @@ Use the list form when you want DPO to compare the full tool-use trajectory. Dur
 4. **Balance**: For DPO, ensure chosen and rejected responses are meaningfully different.
 5. **Diversity**: Include diverse examples covering different use cases and edge cases.
 6. **Tool-calling data**: Prefer the Messages format for tool-calling samples - it maps 1:1 to the chat template and is the least error-prone.
-

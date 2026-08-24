@@ -780,7 +780,7 @@ def test_chain_dpo_sharegpt_formatter_to_dataset():
 
 
 def test_chain_dpo_messages_tool_trajectory_formatter_to_dataset():
-    """DPO messages 完整工具轨迹: 只监督 completion 中的 assistant 段"""
+    """DPO messages 双工具轨迹: 两边只监督各自的 assistant 段"""
     from bumblecore.data_processing import DataFormatter
 
     raw = [
@@ -797,7 +797,19 @@ def test_chain_dpo_messages_tool_trajectory_formatter_to_dataset():
                             "required": ["city"],
                         },
                     },
-                }
+                },
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "get_air_quality",
+                        "description": "查询城市空气质量",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {"city": {"type": "string"}},
+                            "required": ["city"],
+                        },
+                    },
+                },
             ],
             "messages": [
                 {"role": "user", "content": "今天北京的天气怎么样？"},
@@ -820,7 +832,21 @@ def test_chain_dpo_messages_tool_trajectory_formatter_to_dataset():
                 {"role": "assistant", "content": "北京今天晴，18°C，适合外出。"},
             ],
             "rejected": [
-                {"role": "assistant", "content": "北京今天应该挺好，适合外出。"},
+                {
+                    "role": "assistant",
+                    "content": "我来查询一下相关信息。",
+                    "tool_calls": [
+                        {
+                            "type": "function",
+                            "function": {
+                                "name": "get_air_quality",
+                                "arguments": {"city": "北京"},
+                            },
+                        }
+                    ],
+                },
+                {"role": "tool", "content": '{"aqi": 42, "level": "优"}'},
+                {"role": "assistant", "content": "北京今天空气质量优，适合外出。"},
             ],
         }
     ]
@@ -840,5 +866,45 @@ def test_chain_dpo_messages_tool_trajectory_formatter_to_dataset():
     assert "<tool_response>" not in chosen
     assert "temperature" not in chosen
     assert "今天北京的天气怎么样？" not in chosen
-    assert "北京今天应该挺好，适合外出。" in rejected
-    assert "<tool_call>" not in rejected
+    assert "我来查询一下相关信息。" in rejected
+    assert "<tool_call>" in rejected
+    assert "get_air_quality" in rejected
+    assert "北京今天空气质量优，适合外出。" in rejected
+    assert "<tool_response>" not in rejected
+    assert '"aqi": 42' not in rejected
+
+
+def test_chain_dpo_messages_plain_multi_turn_trajectory():
+    """普通多轮 DPO: assistant 段进入 labels，中间 user 段只作为上下文"""
+    from bumblecore.data_processing import DataFormatter
+
+    raw = [
+        {
+            "messages": [
+                {"role": "user", "content": "帮我推荐一台电脑。"},
+            ],
+            "chosen": [
+                {"role": "assistant", "content": "你的预算和主要用途是什么？"},
+                {"role": "user", "content": "八千元，主要编程。"},
+                {"role": "assistant", "content": "建议选择 32GB 内存、1TB SSD 的机型。"},
+            ],
+            "rejected": [
+                {"role": "assistant", "content": "直接买最贵的游戏本。"},
+            ],
+        }
+    ]
+
+    formatted = DataFormatter("dpo")(raw)
+    assert formatted[0]["chosen_messages"]["completion_start_idx"] == 2
+    assert formatted[0]["rejected_messages"]["completion_start_idx"] == 2
+
+    dataset = DPODataset(formatted, tokenizer, max_length=512)
+    result = dataset[0]
+
+    chosen = _supervised_text(result, "chosen_labels")
+    rejected = _supervised_text(result, "rejected_labels")
+    assert "你的预算和主要用途是什么？" in chosen
+    assert "建议选择 32GB 内存、1TB SSD 的机型。" in chosen
+    assert "八千元，主要编程。" not in chosen
+    assert "帮我推荐一台电脑。" not in chosen
+    assert "直接买最贵的游戏本。" in rejected

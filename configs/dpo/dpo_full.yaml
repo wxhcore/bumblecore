@@ -45,5 +45,5 @@ num_local_io_workers: null  # 整数，不传则根据gpu数量自动计算
 # dpo权重
 ld_alpha: 1.0 
 pref_beta: 0.1 
-label_smoothing: 0.0 
+dpo_label_smoothing: 0.0
 sft_weight: 0.0

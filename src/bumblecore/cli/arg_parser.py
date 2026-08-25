@@ -47,6 +47,8 @@ def get_args():
         action="store_true",
         default=cfg.get("enable_gradient_checkpointing", False),
     )
+    parser.add_argument("--packing", type=bool, default=cfg.get("packing", True))
+    parser.add_argument("--packing_num_proc", type=int, default=cfg.get("packing_num_proc", 4))
     parser.add_argument("--warmup_ratio", type=float, default=cfg.get("warmup_ratio", 0.1))
 
     # Batch Size

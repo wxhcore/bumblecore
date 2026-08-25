@@ -65,3 +65,4 @@ experiments/*.md
 # DeepSpeed
 deepspeed_logs/
 
+*.png

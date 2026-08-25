@@ -1,53 +1,20 @@
-import io
-
 import torch
 import torch.distributed as dist
-from torch.utils.data import Dataset,get_worker_info
-from rich.console import Console
-from rich.table import Table
-from rich.text import Text
+from torch.utils.data import Dataset, get_worker_info
 from tqdm import tqdm
 
+import math
+import multiprocessing as mp
+from itertools import chain
 
-def show_sample(
-    input_ids, 
-    labels, 
-    tokenizer, 
-    title="Input and Labels" ,
-    left_column = "Input IDs", 
-    right_column = "Labels"
-):
-    input_ids = input_ids.tolist()
-    labels = labels.tolist()
-
-    valid_labels_list = [token_id for token_id in labels if token_id != -100]
-    decoded_input = tokenizer.decode(input_ids)
-    decoded_labels = tokenizer.decode(valid_labels_list)
-
-    table = Table(show_header=True, show_lines=True, title=title)
-    table.add_column(left_column, overflow="fold")
-    table.add_column(right_column, overflow="fold")
-
-    wrapped_input = Text(decoded_input, no_wrap=False, overflow="fold")
-    wrapped_labels = Text(decoded_labels, no_wrap=False, overflow="fold")
-
-    table.add_row(str(input_ids), str(labels))
-    table.add_row(wrapped_input, wrapped_labels)
-
-    with io.StringIO() as buf:
-        console = Console(file=buf, force_terminal=False)
-        console.print(table)
-        output = buf.getvalue()
-
-    tqdm.write(output.rstrip())
-
-
-def get_padding_value(tokenizer):
-    if tokenizer.pad_token_id is not None:
-        return tokenizer.pad_token_id
-    
-    eos = tokenizer.eos_token_id
-    return eos[0] if isinstance(eos, list) else eos
+from .dataset_utils import (
+    show_sample,
+    get_padding_value,
+    calculate_matched_group,
+    split_list,
+    is_master,
+    is_distributed,
+)
 
 
 class PretrainDataset(Dataset):
@@ -120,23 +87,136 @@ class PretrainDataset(Dataset):
 
 
 
+
 class SFTDataset(Dataset):
-    
+    PACKING_BATCH_SIZE = 1000
+
     def __init__(
         self,
         train_dataset,
         tokenizer,
         max_length,
+        # ── new packing args ──
+        packing: bool = False,
+        packing_num_proc: int = 1,
     ):
         self.train_dataset = train_dataset
         self.tokenizer = tokenizer
         self.max_length = max_length
-
         self.has_shown_sample = False
 
-    def __len__(self):
-        return len(self.train_dataset)
-    
+        if len(train_dataset) == 0:
+            raise ValueError("train_dataset cannot be empty")
+
+        # ── packing bookkeeping ──
+        self.packing = packing
+        self.packing_length = max_length
+        self.packed_idx = None
+        self.packed_length = None
+
+        if self.packing:
+            self.packing_num_proc = min(
+                packing_num_proc,
+                max(1, math.ceil(len(train_dataset) / self.PACKING_BATCH_SIZE)),
+            )
+            self._out_queue = mp.Queue()
+            self._setup_packing()
+
+    # ------------------------------------------------------------------ #
+    #                    packing index construction                       #
+    # ------------------------------------------------------------------ #
+
+    def _compute_lengths(self) -> list[int]:
+        """Tokenize every sample once to get its length."""
+        lengths = []
+        for idx in tqdm(range(len(self.train_dataset)), desc="Computing sequence lengths"):
+            messages = self.train_dataset[idx]["messages"]
+            tools = self.train_dataset[idx].get("tools", None)
+            tokens = self.tokenizer.apply_chat_template(
+                messages,
+                tokenize=True,
+                add_generation_prompt=False,
+                truncation=True,
+                max_length=self.max_length,
+                tools=tools if tools else None,
+            )
+            lengths.append(len(tokens))
+        return lengths
+
+    def _setup_packing(self):
+        """Build packed_idx / packed_length using multi-process bin-packing."""
+        if is_master():
+            # 计算每条数据的长度
+            lengths = self._compute_lengths()
+            offset = 0
+            chunked_lengths = split_list(lengths, self.packing_num_proc)
+
+            # launch workers
+            for i in range(self.packing_num_proc):
+                worker = mp.Process(
+                    target=self._create_packed_idx,
+                    args=(i, offset, chunked_lengths[i]),
+                    daemon=True,
+                )
+                worker.start()
+                offset += len(chunked_lengths[i])
+
+            # collect results
+            self.packed_idx = [[] for _ in range(self.packing_num_proc)]
+            self.packed_length = [[] for _ in range(self.packing_num_proc)]
+
+            desc = (
+                "Packing: "
+                if self.packing_num_proc == 1
+                else f"Packing (num_proc={self.packing_num_proc}): "
+            )
+            with tqdm(total=len(lengths), dynamic_ncols=True, desc=desc) as pbar:
+                finished = 0
+                while finished < self.packing_num_proc:
+                    rank, sequences, data_len = self._out_queue.get()
+                    if data_len == -1:          # sentinel
+                        finished += 1
+                        continue
+                    pbar.update(data_len)
+                    # (idx, length)
+                    self.packed_idx[rank] += [[x[0] for x in seq] for seq in sequences]
+                    # sum的结果应该接近packing_length
+                    self.packed_length[rank] += [sum(x[1] for x in seq) for seq in sequences]
+
+            self.packed_idx = list(chain.from_iterable(self.packed_idx))
+            self.packed_length = list(chain.from_iterable(self.packed_length))
+        else:
+            self.packed_idx, self.packed_length = None, None
+
+        # broadcast to all ranks
+        if is_distributed():
+            obj_list = [(self.packed_idx, self.packed_length)]
+            dist.broadcast_object_list(obj_list)
+            self.packed_idx, self.packed_length = obj_list[0]
+
+    def _create_packed_idx(self, rank: int, offset: int, lengths: list[int]):
+        """Worker: stream bin-packing results back through self._out_queue."""
+        # 这个i + offset 用来定位数据的源数据集中的位置
+        data = [(i + offset, length) for i, length in enumerate(lengths)]
+        i = 0
+        input_data: list = []
+        while True:
+            new_data = data[i : i + self.PACKING_BATCH_SIZE]
+            input_data += new_data
+            if not input_data:
+                break
+            i += self.PACKING_BATCH_SIZE
+            is_finished = i >= len(data)
+            sequences, input_data = calculate_matched_group(
+                input_data, self.packing_length, is_finished=is_finished
+            )
+            # (进程号，packing结果，剩余数据长度)
+            self._out_queue.put((rank, sequences, len(new_data)))
+        self._out_queue.put((rank, [], -1))  # sentinel
+
+    # ------------------------------------------------------------------ #
+    #                        original SFT logic                          #
+    # ------------------------------------------------------------------ #
 
     def create_conversation_manually(self, messages, tools):
 
@@ -158,7 +238,6 @@ class SFTDataset(Dataset):
 
         for i, message in enumerate(messages):
             if message["role"] == "assistant":
-
                 context_with_reply = messages[: i + 1]
                 full_tokens = self.tokenizer.apply_chat_template(
                     context_with_reply,
@@ -169,66 +248,118 @@ class SFTDataset(Dataset):
                     tools=tools if tools else None,
                 )
                 reply_end_pos = len(full_tokens)
-
                 assistant_masks[current_pos:reply_end_pos] = [1] * (reply_end_pos - current_pos)
-
             else:
-
-                prompt_context = messages[: i + 1]
-
                 if message["role"] == "system":
                     continue
-
-                else:
-                    prompt_tokens = self.tokenizer.apply_chat_template(
-                        prompt_context,
-                        tokenize=True,
-                        add_generation_prompt=True,
-                        truncation=True,
-                        max_length=self.max_length,
-                        tools=tools if tools else None,
-                    )
-                    current_pos = len(prompt_tokens)
+                prompt_context = messages[: i + 1]
+                prompt_tokens = self.tokenizer.apply_chat_template(
+                    prompt_context,
+                    tokenize=True,
+                    add_generation_prompt=True,
+                    truncation=True,
+                    max_length=self.max_length,
+                    tools=tools if tools else None,
+                )
+                current_pos = len(prompt_tokens)
 
         input_ids = torch.tensor(input_ids, dtype=torch.long)
         attention_mask = torch.tensor(attention_mask, dtype=torch.long)
         labels = input_ids.clone()
-
         labels[torch.tensor(assistant_masks, dtype=torch.bool) == 0] = -100
 
         return dict(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
-    
 
     def _show_train_sample(self, input_ids, labels):
-
         if dist.is_available() and dist.is_initialized():
             rank = dist.get_rank()
         else:
-            rank = 0 
+            rank = 0
         worker_info = get_worker_info()
         is_main_worker = (worker_info is None) or (worker_info.id == 0)
         if rank == 0 and is_main_worker and not self.has_shown_sample:
             show_sample(
                 input_ids=input_ids,
                 labels=labels,
-                tokenizer = self.tokenizer,
+                tokenizer=self.tokenizer,
                 title="SFT Input and Labels",
                 left_column="Input IDs",
-                right_column="Labels"
+                right_column="Labels",
             )
             self.has_shown_sample = True
-    
-    def __getitem__(self, idx):
+
+    # ------------------------------------------------------------------ #
+    #                      __len__  /  __getitem__                       #
+    # ------------------------------------------------------------------ #
+
+    def __len__(self):
+        if self.packing:
+            return len(self.packed_idx)
+        return len(self.train_dataset)
+
+    def _process_single_sample(self, idx: int) -> dict:
+        """Tokenize one sample (shared by normal & packing paths)."""
         messages = self.train_dataset[idx]["messages"]
-        tools = self.train_dataset[idx]["tools"]
-        sample = self.create_conversation_manually(messages, tools)
+        tools = self.train_dataset[idx].get("tools", None)
+        return self.create_conversation_manually(messages, tools)
 
-        self._show_train_sample(
-            input_ids=sample["input_ids"],
-            labels=sample["labels"],
-        )
+    def __getitem__(self, idx):
+        if self.packing:
+            return self._getitem_packing(idx)
 
+        sample = self._process_single_sample(idx)
+        # self._show_train_sample(input_ids=sample["input_ids"], labels=sample["labels"])
         return sample
+
+    # ── packing __getitem__ ──────────────────────────────────────────────
+
+    def _getitem_packing(self, idx):
+        """
+        Concatenate the samples assigned to this pack, add per-sequence
+        position_ids (reset to 0 at each boundary).
+
+        Returns
+        -------
+        dict with keys: input_ids, attention_mask, labels, position_ids
+            All tensors are concatenated but NOT padded.
+            Padding is handled by PackingDataCollator.
+
+        Notes
+        -----
+        * ``position_ids`` resets to 0 at each sequence boundary, which
+          Flash-Attention-2 / flex-attention can use to build a
+          block-diagonal mask automatically.
+        """
+        sequence_indices = self.packed_idx[idx]
+
+        all_input_ids = []
+        all_labels = []
+        all_position_ids = []
+
+        for seq_idx in sequence_indices:
+            sample = self._process_single_sample(seq_idx)
+            input_ids = sample["input_ids"]   # (seq_len,)
+            labels = sample["labels"]         # (seq_len,)
+            seq_len = input_ids.size(0)
+
+            all_input_ids.append(input_ids)
+            all_labels.append(labels)
+            all_position_ids.append(torch.arange(seq_len, dtype=torch.long))
+
+        # concat
+        input_ids = torch.cat(all_input_ids, dim=0)
+        labels = torch.cat(all_labels, dim=0)
+        position_ids = torch.cat(all_position_ids, dim=0)
+        attention_mask = torch.ones(input_ids.size(0), dtype=torch.long)
+
+        self._show_train_sample(input_ids=input_ids, labels=labels)
+
+        return dict(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            labels=labels,
+            position_ids=position_ids,
+        )
 
 
 class DPODataset(Dataset):
@@ -441,6 +572,72 @@ class DPOCollator:
             rejected_labels=self._right_pad_to_len(
             rejected_labels, max_length, -100
         ),
+        )
+
+    @staticmethod
+    def _right_pad_to_len(sequences, max_length, padding_value):
+        padded = torch.nn.utils.rnn.pad_sequence(
+            sequences, batch_first=True, padding_value=padding_value
+        )
+        if padded.size(1) < max_length:
+            diff = max_length - padded.size(1)
+            pad_tensor = torch.full(
+                (padded.size(0), diff),
+                padding_value,
+                dtype=padded.dtype,
+                device=padded.device
+            )
+            padded = torch.cat([padded, pad_tensor], dim=1)
+        return padded
+
+
+class PackingDataCollator:
+    """
+    Data collator for packed sequences.
+    
+    Pads a batch of packed sequences (with varying lengths) to the max length
+    in the batch. Similar to DataCollator but also handles position_ids.
+    """
+
+    def __init__(self, tokenizer):
+        self.input_ids_padding_value = get_padding_value(tokenizer=tokenizer)
+
+    def __call__(self, batch):
+        if not batch:
+            return dict(
+                input_ids=torch.tensor([], dtype=torch.long).reshape(0, 0),
+                attention_mask=torch.tensor([], dtype=torch.long).reshape(0, 0),
+                labels=torch.tensor([], dtype=torch.long).reshape(0, 0),
+                position_ids=torch.tensor([], dtype=torch.long).reshape(0, 0),
+            )
+
+        input_ids = [item["input_ids"] for item in batch]
+        attention_mask = [item["attention_mask"] for item in batch]
+        labels = [item["labels"] for item in batch]
+        position_ids = [item["position_ids"] for item in batch]
+
+        # Find max length in this batch
+        max_length = max(len(x) for x in input_ids)
+
+        # Pad all sequences to max_length
+        input_ids = self._right_pad_to_len(
+            input_ids, max_length, self.input_ids_padding_value
+        )
+        attention_mask = self._right_pad_to_len(
+            attention_mask, max_length, 0
+        )
+        labels = self._right_pad_to_len(
+            labels, max_length, -100
+        )
+        position_ids = self._right_pad_to_len(
+            position_ids, max_length, 0
+        )
+
+        return dict(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            labels=labels,
+            position_ids=position_ids,
         )
 
     @staticmethod

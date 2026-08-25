@@ -16,6 +16,8 @@ learning_rate: 5e-5
 lr_scheduler_type: "cosine"                               
 enable_gradient_checkpointing: true                   
 warmup_ratio: 0.1
+packing: true
+packing_num_proc: 4
 
 # Batch Size
 train_micro_batch_size_per_gpu: 4              

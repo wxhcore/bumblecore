@@ -542,7 +542,17 @@ class BaseTrainer:
         input_ids = batch["input_ids"]
         attention_mask = batch["attention_mask"]
         labels = batch["labels"]
-        output = model_engine(input_ids=input_ids, attention_mask=attention_mask, use_cache=False)
+
+        # Support packing: pass position_ids if present
+        model_kwargs = dict(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            use_cache=False
+        )
+        if "position_ids" in batch:
+            model_kwargs["position_ids"] = batch["position_ids"]
+
+        output = model_engine(**model_kwargs)
         if self.config.average_tokens_across_devices:
             count = (labels != -100).sum().float()
             dist.all_reduce(count, op=dist.ReduceOp.SUM)

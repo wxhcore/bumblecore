@@ -46,6 +46,10 @@ class TrainConfig:
     lora_dropout: float = field(default=0.1)
     lora_target_modules: Optional[Union[List[str], str]] = field(default=None)
 
+    # Packing settings
+    packing: bool = field(default=False)
+    packing_num_proc: int = field(default=1)
+
 
     ld_alpha: float = field(default=1.0)       
     pref_beta: float = field(default=0.1)             
